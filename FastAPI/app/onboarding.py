@@ -5,6 +5,7 @@
 
 from datetime import datetime, timedelta, timezone
 import secrets
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
@@ -44,7 +45,18 @@ def onboard_start(body: StartRequest) -> dict:
         # The real exception (SendBlue's raw error text) stays server-side
         # only -- surfacing it to the browser looks like a broken app to
         # whoever's typing their number in, e.g. a judge trying the demo.
-        raise HTTPException(status_code=400, detail="Could not text that number -- double check it and try again") from exc
+        # By far the most common real cause isn't a typo: SendBlue's free
+        # tier only allows us to text a number that has texted us first,
+        # so a genuinely brand-new number always fails here on the first
+        # try -- say that plainly instead of implying user error.
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Couldn't send a code to that number. If this is a brand-new "
+                "number, text /join to this same number first, then try again -- "
+                "otherwise double check it's typed correctly."
+            ),
+        ) from exc
         
     return {"status": "sent"}
 
@@ -213,4 +225,11 @@ def oauth_google_callback(code: str, state: str) -> RedirectResponse:
         user.google_token = token_json
         session.commit()
 
-    return RedirectResponse(f"{FRONTEND_BASE_URL}/?phone={state}")
+    # Real, confirmed live bug: an un-encoded "+" in a query string is
+    # itself valid syntax meaning a literal space (the application/
+    # x-www-form-urlencoded convention every browser's URLSearchParams
+    # follows) -- so a raw phone number like "+19033063505" embedded here
+    # was silently arriving in the frontend as " 19033063505", permanently
+    # corrupting that phone in localStorage the instant anyone finished
+    # connecting their calendar. urlencode() correctly escapes it to %2B.
+    return RedirectResponse(f"{FRONTEND_BASE_URL}/?{urlencode({'phone': state})}")
