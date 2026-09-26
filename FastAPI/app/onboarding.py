@@ -5,6 +5,7 @@
 
 from datetime import datetime, timedelta, timezone
 import secrets
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
@@ -213,4 +214,11 @@ def oauth_google_callback(code: str, state: str) -> RedirectResponse:
         user.google_token = token_json
         session.commit()
 
-    return RedirectResponse(f"{FRONTEND_BASE_URL}/?phone={state}")
+    # Real, confirmed live bug: an un-encoded "+" in a query string is
+    # itself valid syntax meaning a literal space (the application/
+    # x-www-form-urlencoded convention every browser's URLSearchParams
+    # follows) -- so a raw phone number like "+19033063505" embedded here
+    # was silently arriving in the frontend as " 19033063505", permanently
+    # corrupting that phone in localStorage the instant anyone finished
+    # connecting their calendar. urlencode() correctly escapes it to %2B.
+    return RedirectResponse(f"{FRONTEND_BASE_URL}/?{urlencode({'phone': state})}")
