@@ -9,10 +9,11 @@ import secrets
 from app.clients.sendblue import send_message
 from app.config import DEMO_GROUP_NUMBERS, FRONTEND_BASE_URL
 from app.crew_digest import build_and_send_digest
-from app.db import Contact, OnboardingToken, User, get_session
+from app.db import Contact, Interest, OnboardingToken, Plan, User, get_session
 from app.mutual_mode import record_hangout
 from app.phone import normalize_phone
 from app.planning import post_proposal_to_group
+from app.reasoning import suggest_activity_idea
 
 COMMAND_PATTERN = re.compile(r"^/(\w+)\s*(.*)$", re.DOTALL)
 
@@ -131,6 +132,35 @@ def handle_met_command(sender: str, name: str) -> None:
     _safe_send(sender, f"Couldn't find anyone named '{name}' in your crew or contacts.")
 
 
+def handle_ideas_command(sender: str) -> None:
+    """/ideas -- asks Muse Spark for 1-2 fresh, personalized activity
+    suggestions based on the sender's real stored interests and what the
+    group has actually confirmed doing recently (real Plan rows, not
+    fabricated). The one other genuinely generative AI call in this app,
+    alongside generate_nudge_message -- not classification, real
+    content generation from real stored data."""
+    phone = normalize_phone(sender)
+    with get_session() as session:
+        owner = session.query(User).filter_by(phone=phone).one_or_none()
+        interests = (
+            [i.tag for i in session.query(Interest).filter_by(user_id=owner.id).all()]
+            if owner
+            else []
+        )
+        recent = [
+            p.venue
+            for p in session.query(Plan)
+            .filter_by(status="confirmed")
+            .order_by(Plan.created_at.desc())
+            .limit(5)
+            .all()
+            if p.venue
+        ]
+
+    idea = suggest_activity_idea(interests, recent)
+    _safe_send(phone, idea)
+
+
 def handle_nudge_command(sender: str) -> None:
     """/nudge -- builds and texts back a personal digest of everyone
     overdue in your crew (mutual friends + your own solo contacts), each
@@ -164,5 +194,8 @@ def try_handle_command(sender: str, content: str | None) -> bool:
         return True
     if command == "met":
         handle_met_command(sender, rest)
+        return True
+    if command == "ideas":
+        handle_ideas_command(sender)
         return True
     return False
