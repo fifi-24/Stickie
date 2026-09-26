@@ -244,17 +244,27 @@ def _send_items(items: list[dict]) -> tuple[int, int]:
 def list_crew(phone: str) -> dict:
     """Real data for the dashboard's Crew tab: everyone regardless of
     overdue status (unlike the digest, which only shows what's overdue),
-    each tagged with the kind/key send_one_now() needs."""
+    each tagged with the kind/key send_one_now() needs, plus a real
+    `overdue` flag so the UI can highlight who actually needs a nudge
+    instead of the list ever looking like it's "missing" people."""
     with get_session() as session:
-        mutual = [
-            _mutual_item(session, phone, other_phone)
-            for other_phone in DEMO_GROUP_NUMBERS
-            if other_phone != phone
-        ]
         me = session.query(User).filter_by(phone=phone).one_or_none()
-        contacts = session.query(Contact).filter_by(owner_user_id=me.id).all() if me else []
-        solo = [_solo_item(session, phone, contact) for contact in contacts]
         threshold_days = _threshold_days_for(me)
+
+        mutual = []
+        for other_phone in DEMO_GROUP_NUMBERS:
+            if other_phone == phone:
+                continue
+            item = _mutual_item(session, phone, other_phone)
+            item["overdue"] = item["days_since"] is None or item["days_since"] >= threshold_days
+            mutual.append(item)
+
+        contacts = session.query(Contact).filter_by(owner_user_id=me.id).all() if me else []
+        solo = []
+        for contact in contacts:
+            item = _solo_item(session, phone, contact)
+            item["overdue"] = item["days_since"] is None or item["days_since"] >= contact.cadence_days
+            solo.append(item)
 
     return {"mutual": mutual, "solo": solo, "nudge_threshold_days": threshold_days}
 

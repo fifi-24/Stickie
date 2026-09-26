@@ -380,7 +380,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-1">
                   <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500">
-                    crew cadence
+                    your crew
                   </span>
                   <button
                     onClick={() => setShowAddFriend(!showAddFriend)}
@@ -427,17 +427,26 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                   {crew.mutual.map((friend) => (
                     <div
                       key={friend.other_phone}
-                      className="p-2.5 bg-white border border-blue-100 rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(219,231,246,0.5)]"
+                      className={`p-2.5 border rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(219,231,246,0.5)] ${
+                        friend.overdue ? 'bg-amber-50 border-amber-300' : 'bg-white border-blue-100'
+                      }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center font-mono text-xs font-bold text-blue-900">
                           {friend.other_name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-slate-800">{friend.other_name}</div>
+                          <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            {friend.other_name}
+                            {friend.overdue && (
+                              <span className="text-[9px] font-mono uppercase text-amber-700 bg-amber-200/70 px-1.5 py-0.5 rounded">
+                                overdue
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] font-mono text-slate-500">
-                            {friend.days_since === null ? 'never hung out' : `seen: ${friend.days_since}d ago`}
-                            {' '}• shared {crew.nudge_threshold_days || 30}d cadence
+                            {friend.days_since === null ? 'never hung out' : `seen ${friend.days_since}d ago`}
+                            {' '}• checked every {crew.nudge_threshold_days || 30}d
                           </div>
                         </div>
                       </div>
@@ -454,19 +463,26 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                   {crew.solo.map((contact) => (
                     <div
                       key={contact.key}
-                      className="p-2.5 bg-white border border-blue-100 rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(219,231,246,0.5)]"
+                      className={`p-2.5 border rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(219,231,246,0.5)] ${
+                        contact.overdue ? 'bg-amber-50 border-amber-300' : 'bg-white border-blue-100'
+                      }`}
                     >
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center font-mono text-xs font-bold text-blue-900">
                           {contact.other_name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-slate-800">
+                          <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                             {contact.other_name}
-                            <span className="text-[10px] font-normal text-slate-400 ml-1.5">not on Stickie</span>
+                            <span className="text-[10px] font-normal text-slate-400">not on Stickie</span>
+                            {contact.overdue && (
+                              <span className="text-[9px] font-mono uppercase text-amber-700 bg-amber-200/70 px-1.5 py-0.5 rounded">
+                                overdue
+                              </span>
+                            )}
                           </div>
                           <div className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
-                            {contact.days_since === null ? 'never met' : `seen: ${contact.days_since}d ago`}
+                            {contact.days_since === null ? 'never met' : `seen ${contact.days_since}d ago`}
                             <select
                               value={DAYS_TO_CADENCE[contact.cadence_days] || 'Monthly'}
                               onChange={(e) => updateContactCadence(contact.key, e.target.value)}
@@ -630,16 +646,16 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                   </div>
                   <div>
                     <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                      Nudge me if overdue by
+                      Check in with crew every
                     </label>
                     <select
                       value={cadence}
                       onChange={(e) => updateCadence(e.target.value)}
                       className="w-full px-1.5 py-1 text-xs bg-white border border-blue-200 rounded outline-none"
                     >
-                      <option value="Weekly">A week</option>
-                      <option value="Bi-weekly">Two weeks</option>
-                      <option value="Monthly">A month</option>
+                      <option value="Weekly">week</option>
+                      <option value="Bi-weekly">2 weeks</option>
+                      <option value="Monthly">month</option>
                     </select>
                   </div>
                 </div>
