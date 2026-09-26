@@ -23,7 +23,12 @@ from googleapiclient.discovery import build
 from app.clients.google_calendar import _to_rfc3339
 from app.config import GOOGLE_WEB_CLIENT_ID, GOOGLE_WEB_CLIENT_SECRET, WEBHOOK_BASE_URL
 
-SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+# Read+write (not just .readonly) -- needed so a finalized plan can be
+# inserted directly onto each person's own calendar instead of only
+# handing them a one-tap "add this" link. Anyone who connected before
+# this changed is still on the old read-only grant and needs to
+# reconnect once (their stored token will 403 on insert until they do).
+SCOPES = ["https://www.googleapis.com/auth/calendar"]
 REDIRECT_URI = f"{WEBHOOK_BASE_URL}/oauth/google/callback"
 
 # get_authorization_url() and exchange_code_for_token() run as two separate
@@ -81,3 +86,19 @@ def get_freebusy_for_user(token_json: str, time_min, time_max) -> list[dict]:
     }
     result = service.freebusy().query(body=body).execute()
     return result["calendars"]["primary"]["busy"]
+
+
+def create_event_for_user(token_json: str, summary: str, location: str, start, end) -> dict:
+    """Inserts the finalized plan directly onto this person's own primary
+    calendar -- real auto-add, not just a link they have to tap."""
+    creds = Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)
+    if creds.expired and creds.refresh_token:
+        creds.refresh(GoogleRequest())
+    service = build("calendar", "v3", credentials=creds)
+    body = {
+        "summary": summary,
+        "location": location,
+        "start": {"dateTime": _to_rfc3339(start)},
+        "end": {"dateTime": _to_rfc3339(end)},
+    }
+    return service.events().insert(calendarId="primary", body=body).execute()

@@ -14,6 +14,7 @@ from app.clients.google_oauth_web import exchange_code_for_token, get_authorizat
 from app.clients.sendblue import send_message
 from app.config import FRONTEND_BASE_URL
 from app.db import Interest, OnboardingToken, User, get_session
+from app.phone import normalize_phone
 
 router = APIRouter()
 
@@ -29,13 +30,14 @@ def onboard_start(body: StartRequest) -> dict:
     """Texts `phone` a one-time link to the onboarding page. Called from
     the site's own 'enter your number' screen — this is the front door
     every new user goes through."""
+    phone = normalize_phone(body.phone)
     token = secrets.token_urlsafe(24)
     with get_session() as session:
-        session.add(OnboardingToken(token=token, phone=body.phone))
+        session.add(OnboardingToken(token=token, phone=phone))
         session.commit()
 
     link = f"{FRONTEND_BASE_URL}/onboard?token={token}"
-    send_message(body.phone, f"Welcome to Stickie! Tap to set up your account: {link}")
+    send_message(phone, f"Welcome to Stickie! Tap to set up your account: {link}")
     return {"status": "sent"}
 
 
@@ -62,6 +64,7 @@ def onboard_verify(token: str) -> dict:
 def user_status(phone: str) -> dict:
     """The site calls this to decide whether to show onboarding or the
     real dashboard for a given (already-verified) phone number."""
+    phone = normalize_phone(phone)
     with get_session() as session:
         user = session.query(User).filter_by(phone=phone).one_or_none()
         if user is None:
@@ -84,10 +87,11 @@ class CompleteRequest(BaseModel):
 @router.post("/onboard/complete")
 def onboard_complete(body: CompleteRequest) -> dict:
     """Real write: upserts the User row and replaces their interest tags."""
+    phone = normalize_phone(body.phone)
     with get_session() as session:
-        user = session.query(User).filter_by(phone=body.phone).one_or_none()
+        user = session.query(User).filter_by(phone=phone).one_or_none()
         if user is None:
-            user = User(name=body.name, phone=body.phone)
+            user = User(name=body.name, phone=phone)
             session.add(user)
             session.flush()
         else:

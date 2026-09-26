@@ -4,6 +4,8 @@
 # once MODEL_API_KEY is live, replace each function's body with a real
 # Muse Spark call. Nothing outside this file needs to change.
 
+import re
+
 
 # Flow A, step 1: detect a plan forming in a chat transcript.
 # Matches the interest-tag vocabulary from onboarding, so a detected
@@ -55,6 +57,21 @@ def detect_plan_intent(messages: list[dict]) -> dict | None:
 _STRONG_ORDINALS = {1: ("1st", "first"), 2: ("2nd", "second"), 3: ("3rd", "third"), 4: ("4th", "fourth")}
 _WEAK_ORDINALS = {1: ("one",), 2: ("two",), 3: ("three",), 4: ("four",)}
 
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _extract_day_time(text: str) -> tuple[str | None, int | None, str | None]:
+    """Pulls a weekday name and an hour+am/pm out of loose text, so "monday
+    3pm" matches an option labelled "Monday 3:00PM" -- an exact substring
+    match fails on that pair since the punctuation/leading-zero formatting
+    differs, which is exactly what silently dropped a real changed-pick
+    reply (it fell through to "unrecognized" and got ignored)."""
+    day = next((d for d in _WEEKDAYS if d in text), None)
+    match = re.search(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)", text)
+    if not match:
+        return day, None, None
+    return day, int(match.group(1)), match.group(3)
+
 
 def interpret(reply_text: str, options: list[str]) -> str:
     text = reply_text.lower()
@@ -62,6 +79,18 @@ def interpret(reply_text: str, options: list[str]) -> str:
     for i, option in enumerate(options, start=1):
         if str(i) in text or option.lower() in text or any(w in text for w in _STRONG_ORDINALS.get(i, ())):
             return option
+
+    # Free-form day/time phrasing ("monday 3pm", "changed my mind, sat 6")
+    # -- matches on meaning (same weekday + same hour/am-pm) rather than
+    # requiring the option's exact "Monday 3:00PM" formatting verbatim.
+    reply_day, reply_hour, reply_ampm = _extract_day_time(text)
+    if reply_hour is not None:
+        for option in options:
+            opt_day, opt_hour, opt_ampm = _extract_day_time(option.lower())
+            if reply_hour == opt_hour and reply_ampm == opt_ampm and (
+                reply_day is None or opt_day is None or reply_day == opt_day
+            ):
+                return option
 
     for i, option in enumerate(options, start=1):
         if any(w in text for w in _WEAK_ORDINALS.get(i, ())):

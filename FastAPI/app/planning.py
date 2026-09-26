@@ -6,16 +6,30 @@
 
 import datetime as dt
 import json
+import threading
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from app.clients.google_calendar import get_freebusy
+from app.clients.google_oauth_web import create_event_for_user, get_freebusy_for_user
 from app.clients.places import search_places
 from app.clients.sendblue import send_group_message
 from app.config import DEMO_GROUP_NUMBERS
 from app.conversation import clear as clear_conversation
-from app.db import Plan, get_session
+from app.db import Plan, User, get_session
 from app.primitives import propose_options_and_await_reply
+
+# record_time_pick() does a read-modify-write on row.rsvps (load the JSON
+# blob, add one pick, save the whole blob back) -- two replies landing on
+# separate request threads within the same instant can both read the
+# pre-update blob, and whichever commits last silently overwrites the
+# other's pick, permanently under-counting the plan. This lock makes that
+# critical section run one request at a time.
+_rsvp_lock = threading.Lock()
+
+# How long after a plan starts collecting that a reply can still change an
+# already-recorded pick (or land as a first pick at all).
+ALTERATION_WINDOW = dt.timedelta(hours=24)
 
 # Demo location: Georgia Tech / downtown Atlanta, since that's where the
 # group actually is tonight. Swap for real per-user locations later.
@@ -32,9 +46,37 @@ _active_plan_times: dict[str, dt.datetime] = {}
 _active_plan_activity: str = ""
 
 
+def _all_busy_ranges(time_min: dt.datetime, time_max: dt.datetime) -> list[tuple[dt.datetime, dt.datetime]]:
+    """Union of busy blocks across every participant who has their own
+    calendar connected, plus Bhaumi's own global calendar as a fallback --
+    a slot only counts as open if it's free for everyone, not just
+    whoever happens to be the one this backend runs as."""
+    def _parse(blocks: list[dict]) -> list[tuple[dt.datetime, dt.datetime]]:
+        return [
+            (dt.datetime.fromisoformat(b["start"].replace("Z", "+00:00")),
+             dt.datetime.fromisoformat(b["end"].replace("Z", "+00:00")))
+            for b in blocks
+        ]
+
+    ranges = _parse(get_freebusy("primary", time_min, time_max))
+
+    with get_session() as session:
+        users = session.query(User).filter(User.phone.in_(DEMO_GROUP_NUMBERS)).all()
+        for user in users:
+            if not user.google_token:
+                continue
+            try:
+                ranges.extend(_parse(get_freebusy_for_user(user.google_token, time_min, time_max)))
+            except Exception as exc:
+                print(f"Couldn't read {user.phone}'s calendar, skipping their availability: {exc}")
+
+    return ranges
+
+
 def _candidate_times(count: int = 2) -> list[tuple[str, dt.datetime]]:
     """A couple of open-looking (label, datetime) slots over the next few
-    days, based on Bhaumi's own calendar (the only one connected tonight).
+    days, checked against every connected participant's own real
+    calendar (see _all_busy_ranges) -- not just Bhaumi's.
 
     Bug that was here before: "3pm"/"6pm" were computed against a UTC-based
     day-start, so they were actually 3pm/6pm UTC — 11am/2pm Eastern, not
@@ -45,12 +87,7 @@ def _candidate_times(count: int = 2) -> list[tuple[str, dt.datetime]]:
     own device/calendar is set to, which is what "device timing" means."""
     now_local = dt.datetime.now(DEMO_TZ)
     now_utc = now_local.astimezone(dt.timezone.utc)
-    busy = get_freebusy("primary", now_utc, now_utc + dt.timedelta(days=5))
-    busy_ranges = [
-        (dt.datetime.fromisoformat(b["start"].replace("Z", "+00:00")),
-         dt.datetime.fromisoformat(b["end"].replace("Z", "+00:00")))
-        for b in busy
-    ]
+    busy_ranges = _all_busy_ranges(now_utc, now_utc + dt.timedelta(days=5))
 
     candidates: list[tuple[str, dt.datetime]] = []
     today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -129,21 +166,48 @@ def post_proposal_to_group(activity: str) -> dict:
     return plan
 
 
+def _add_to_everyones_calendar(activity: str, venue: str, start: dt.datetime) -> None:
+    """Inserts the finalized plan directly onto every connected
+    participant's own calendar. Best-effort per person -- one person's
+    token being stale/revoked shouldn't stop everyone else from getting
+    it, and the group message's gcal link stays as a manual fallback."""
+    end = start + dt.timedelta(hours=1)
+    with get_session() as session:
+        users = session.query(User).filter(User.phone.in_(DEMO_GROUP_NUMBERS)).all()
+        for user in users:
+            if not user.google_token:
+                continue
+            try:
+                create_event_for_user(user.google_token, f"{activity.title()} - {venue}", venue, start, end)
+            except Exception as exc:
+                print(f"Couldn't auto-add to {user.phone}'s calendar (they may need to reconnect): {exc}")
+
+
 def record_time_pick(sender: str, resolved_time: str) -> None:
     """Called from the webhook once resolve_pending_reply() has already
     matched a reply to one of the active plan's time-option labels.
-    Tallies the pick; once every group member has answered, finalizes the
-    plan (majority vote, ties go to the earlier time) and sends the real
-    confirmation to the group with a calendar link — this is the step
-    that was missing before."""
+    Tallies the pick (a changed pick overwrites the same person's earlier
+    one, since picks is keyed by phone); once every group member has
+    answered, finalizes the plan (majority vote, ties go to the earlier
+    time), adds it straight to everyone's own calendar, and sends the
+    real confirmation to the group."""
     global _active_plan_id, _active_plan_times, _active_plan_activity
 
     if _active_plan_id is None or resolved_time not in _active_plan_times:
         return
 
-    with get_session() as session:
+    # record_time_pick() is a read-modify-write on the same JSON blob
+    # (row.rsvps): load it, change one key, save the whole thing back.
+    # Two replies arriving on overlapping request threads could both read
+    # the same starting blob and then each save their own version, with
+    # whichever commits last silently discarding the other's pick. This
+    # lock forces that whole read-modify-write to happen one at a time.
+    with _rsvp_lock, get_session() as session:
         row = session.query(Plan).filter_by(id=_active_plan_id).one_or_none()
         if row is None or row.status != "collecting":
+            return
+        if dt.datetime.now(dt.timezone.utc) - row.created_at > ALTERATION_WINDOW:
+            print(f"Ignoring pick from {sender}: past the 24h alteration window for this plan")
             return
 
         picks = json.loads(row.rsvps or "{}")
@@ -165,13 +229,17 @@ def record_time_pick(sender: str, resolved_time: str) -> None:
         row.time = winning_time
         session.commit()
 
-        link = _gcal_link(_active_plan_activity, row.venue, winning_time)
-        print(f"PLAN CONFIRMED: {_active_plan_activity} at {row.venue}, {winning_label} (votes: {counts})")
-        send_group_message(
-            DEMO_GROUP_NUMBERS,
-            f"It's settled! {_active_plan_activity} at {row.venue}, {winning_label}. "
-            f"Add it to your calendar: {link}",
-        )
+        activity, venue = _active_plan_activity, row.venue
+
+    _add_to_everyones_calendar(activity, venue, winning_time)
+
+    link = _gcal_link(activity, venue, winning_time)
+    print(f"PLAN CONFIRMED: {activity} at {venue}, {winning_label} (votes: {counts})")
+    send_group_message(
+        DEMO_GROUP_NUMBERS,
+        f"It's settled! {activity} at {venue}, {winning_label}. "
+        f"Added it to your calendar already -- here's the link too just in case: {link}",
+    )
 
     _active_plan_id = None
     _active_plan_times = {}
