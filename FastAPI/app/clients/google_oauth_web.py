@@ -26,8 +26,17 @@ from app.config import GOOGLE_WEB_CLIENT_ID, GOOGLE_WEB_CLIENT_SECRET, WEBHOOK_B
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 REDIRECT_URI = f"{WEBHOOK_BASE_URL}/oauth/google/callback"
 
+# get_authorization_url() and exchange_code_for_token() run as two separate
+# HTTP requests, so a fresh Flow() in each would auto-generate a different
+# random PKCE code_verifier for each -- the exchange would then send a
+# verifier that doesn't match the code_challenge Google already saw,
+# and every real token exchange fails with invalid_grant. Persisting the
+# verifier here (keyed by state/phone) and reusing it on the callback
+# side is what actually makes the round trip verify.
+_code_verifiers: dict[str, str] = {}
 
-def _flow() -> Flow:
+
+def _flow(code_verifier: str | None = None) -> Flow:
     client_config = {
         "web": {
             "client_id": GOOGLE_WEB_CLIENT_ID,
@@ -37,7 +46,9 @@ def _flow() -> Flow:
             "redirect_uris": [REDIRECT_URI],
         }
     }
-    return Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri=REDIRECT_URI)
+    return Flow.from_client_config(
+        client_config, scopes=SCOPES, redirect_uri=REDIRECT_URI, code_verifier=code_verifier
+    )
 
 
 def get_authorization_url(state: str) -> str:
@@ -45,12 +56,13 @@ def get_authorization_url(state: str) -> str:
     the callback knows whose account this is."""
     flow = _flow()
     auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent", state=state)
+    _code_verifiers[state] = flow.code_verifier
     return auth_url
 
 
-def exchange_code_for_token(code: str) -> str:
+def exchange_code_for_token(code: str, state: str) -> str:
     """Returns the credentials as a JSON string, ready to store in users.google_token."""
-    flow = _flow()
+    flow = _flow(code_verifier=_code_verifiers.pop(state, None))
     flow.fetch_token(code=code)
     return flow.credentials.to_json()
 

@@ -115,7 +115,7 @@ def oauth_google_callback(code: str, state: str) -> HTMLResponse:
     number we sent in oauth_google_start. Stores the real credentials on
     that user's row -- this is what makes their own calendar usable
     later, instead of only Bhaumi's."""
-    token_json = exchange_code_for_token(code)
+    token_json = exchange_code_for_token(code, state)
 
     with get_session() as session:
         user = session.query(User).filter_by(phone=state).one_or_none()
