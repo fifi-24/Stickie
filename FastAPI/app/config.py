@@ -12,7 +12,16 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./stickie.db")
 
 MODEL_API_KEY = os.environ.get("MODEL_API_KEY", "")
-MUSE_SPARK_MODEL = os.environ.get("MUSE_SPARK_MODEL", "muse-spark-1.3")
+# Confirmed from dev.meta.ai's own docs ("Build with Muse Spark" ->
+# "At a glance"): Contributor-tier models are muse-spark-1.3-contributor
+# and muse-spark-1.2-contributor -- this account has Contributor access
+# (per the dashboard banner), so that's the real model to request.
+MUSE_SPARK_MODEL = os.environ.get("MUSE_SPARK_MODEL", "muse-spark-1.3-contributor")
+# Confirmed base URL from the same docs page. The API is the OpenAI
+# Responses API shape (POST {base}/responses with "input"/"output_text"),
+# not Anthropic's Messages API -- the "Configure Claude Code" tab on the
+# dashboard is just one of several supported agent-CLI integrations, not
+# the API's own native contract.
 MODEL_API_BASE_URL = "https://api.meta.ai/v1"
 
 SENDBLUE_API_KEY = os.environ.get("SENDBLUE_API_KEY", "")
