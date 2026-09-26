@@ -139,7 +139,13 @@ def record_time_pick(sender: str, resolved_time: str) -> None:
         row = session.query(Plan).filter_by(id=_active_plan_id).one_or_none()
         if row is None or row.status != "collecting":
             return
-        if dt.datetime.now(dt.timezone.utc) - row.created_at > ALTERATION_WINDOW:
+        # row.created_at comes back naive (Postgres DateTime column, no
+        # timezone=True) even though it was written as UTC -- comparing
+        # it directly against an aware "now" crashes every single reply
+        # with TypeError. Same fix pattern already used in onboarding.py's
+        # token-expiry check.
+        created_at_utc = row.created_at.replace(tzinfo=dt.timezone.utc)
+        if dt.datetime.now(dt.timezone.utc) - created_at_utc > ALTERATION_WINDOW:
             print(f"Ignoring pick from {sender}: past the 24h alteration window for this plan")
             return
 
