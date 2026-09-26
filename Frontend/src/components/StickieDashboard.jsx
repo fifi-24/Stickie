@@ -14,53 +14,51 @@ const DEFAULT_INTERESTS = [
 
 // TODO(real data): still mock -- no backend endpoint returns real
 // confirmed-plan history yet. Wire this to real Plan rows before demoing
-// this tab as if it were live data.
+// this tab as if it were live data. Month is used to place each entry on
+// the timeline.
 const PAST_HANGOUTS = [
-  {
-    id: 101,
-    title: "Midtown Trivia Run",
-    date: "Sept 24",
-    attendees: "Anvi, Bhaumi",
-    venue: "Midtown Moon",
-    note: "Won 2nd place! Next round is Tuesday.",
-    color: "bg-[#eaf3fc] border-[#cfe2f8] shadow-[3px_4px_1px_rgba(186,211,238,0.7)] rotate-[-1.5deg]"
-  },
-  {
-    id: 102,
-    title: "Westside Pickleball",
-    date: "Sept 18",
-    attendees: "Ellie, Bhaumi",
-    venue: "Westside Courts",
-    note: "3 sets played under the lights.",
-    color: "bg-[#f2effb] border-[#dfd7f7] shadow-[3px_4px_1px_rgba(209,198,245,0.7)] rotate-[1.2deg]"
-  },
-  {
-    id: 103,
-    title: "Spontaneous Coffee Spark",
-    date: "Sept 12",
-    attendees: "Bhaumi",
-    venue: "Student Center Lounge",
-    note: "15-min iced matcha break between classes.",
-    color: "bg-[#fdfaf2] border-[#faecc7] shadow-[3px_4px_1px_rgba(245,232,188,0.8)] rotate-[-0.8deg]"
-  },
-  {
-    id: 104,
-    title: "Late Night Boba Run",
-    date: "Sept 04",
-    attendees: "Sophie, Anvi",
-    venue: "Sweet Hut Bakery",
-    note: "Crossover catchup session!",
-    color: "bg-[#f0f7f4] border-[#d4ede2] shadow-[3px_4px_1px_rgba(195,228,214,0.7)] rotate-[1.8deg]"
-  }
+  { id: 101, month: "Sept", title: "Midtown Trivia Run", date: "Sept 24", attendees: "Anvi, Bhaumi", venue: "Midtown Moon", note: "Won 2nd place! Next round is Tuesday." },
+  { id: 102, month: "Sept", title: "Westside Pickleball", date: "Sept 18", attendees: "Ellie, Bhaumi", venue: "Westside Courts", note: "3 sets played under the lights." },
+  { id: 103, month: "Sept", title: "Spontaneous Coffee Spark", date: "Sept 12", attendees: "Bhaumi", venue: "Student Center Lounge", note: "15-min iced matcha break between classes." },
+  { id: 104, month: "Sept", title: "Late Night Boba Run", date: "Sept 04", attendees: "Sophie, Anvi", venue: "Sweet Hut Bakery", note: "Crossover catchup session!" },
 ];
 
-// This dashboard only renders once App.jsx has already verified the
-// visitor (real phone + real Google Calendar connection) -- there is no
-// separate login step here, and there never should be one, since that
-// would just be a second, fake gate in front of a real one.
+// Design tokens shared with Onboarding.jsx -- dark/cream/gold, matching
+// the agreed mockup. Crew's own data/sort/overdue logic is unchanged;
+// only colors move over, plus a real on-app/not-on-app two-tone.
+const PAGE_BG = '#EDE6D6';
+const CARD_BG = '#FFFDF8';
+const ACCENT = '#F0C94C';
+const INK = '#2b2620';
+const MUTED = '#8a7d68';
+
 const CADENCE_DAYS = { Weekly: 7, 'Bi-weekly': 14, Monthly: 30 };
 const DAYS_TO_CADENCE = { 7: 'Weekly', 14: 'Bi-weekly', 30: 'Monthly' };
 
+function Logo({ size = 28, cutoutColor = CARD_BG }) {
+  return (
+    <div
+      className="rounded-lg relative overflow-hidden shadow-xs shrink-0"
+      style={{ background: ACCENT, width: size, height: size }}
+    >
+      <div
+        className="absolute rotate-45"
+        style={{
+          background: cutoutColor,
+          width: size * 0.55,
+          height: size * 0.55,
+          top: -size * 0.28,
+          right: -size * 0.28,
+        }}
+      />
+    </div>
+  );
+}
+
+// This dashboard only renders once App.jsx has already verified the
+// visitor (real phone + real name saved) -- there is no separate login
+// step here, and there never should be one, since that would just be a
+// second, fake gate in front of a real one.
 export default function StickieDashboard({ name = '', phone: realPhone = '', interests = [], nudgeThresholdDays = null }) {
   const initials = (name || 'Stickie User')
     .trim()
@@ -79,6 +77,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
   const [phone, setPhone] = useState(realPhone || '');
   const [cadence, setCadence] = useState(DAYS_TO_CADENCE[nudgeThresholdDays] || 'Monthly');
   const [presence, setPresence] = useState('Active');
+  const [hasCalendar, setHasCalendar] = useState(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('interests');
@@ -119,6 +118,15 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
     if (activeTab === 'friends') fetchCrew();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!phone) return;
+    fetch(`${API_BASE}/users/status?phone=${encodeURIComponent(phone)}`)
+      .then((r) => r.json())
+      .then((data) => setHasCalendar(Boolean(data.has_calendar)))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleInterest = (tag) => {
     setSelectedInterests(prev =>
@@ -210,82 +218,79 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
     }
   };
 
+  const connectCalendar = () => {
+    window.location.href = `${API_BASE}/oauth/google/start?phone=${encodeURIComponent(phone)}`;
+  };
+
   return (
-    <div
-      className="min-h-screen text-slate-800 flex flex-col items-center font-sans"
-      style={{
-        background:
-          'radial-gradient(circle at 50% 0%, #f3f8fd 0%, #e4edf7 60%, #dbe6f2 100%)',
-      }}
-    >
-      <div className="w-full max-w-md min-h-screen flex flex-col justify-between bg-[#f8fbfe] border-x border-blue-200/60 shadow-[0_0_25px_rgba(186,211,238,0.35)] relative">
+    <div className="min-h-screen text-[#2b2620] flex flex-col items-center font-sans" style={{ background: PAGE_BG }}>
+      <div className="w-full max-w-md min-h-screen flex flex-col justify-between border-x border-[#e6dcc2] shadow-[0_0_25px_rgba(0,0,0,0.06)] relative" style={{ background: CARD_BG }}>
 
         {/* TOP BAR */}
-        <header className="sticky top-0 z-40 bg-[#f8fbfe]/95 backdrop-blur-md px-5 py-3.5 flex items-center justify-between border-b border-blue-100">
-          {/* Placeholder logomark -- a real brand mark replaces this, not
-              literal bracket-text. Keeping it a plain shape (no letter)
-              until that's decided so nothing here reads as "final." */}
-          <div className="w-7 h-7 rounded-md bg-blue-700 shadow-xs relative overflow-hidden">
-            <div className="absolute -top-2 -right-2 w-4 h-4 bg-[#f8fbfe] rotate-45" />
-          </div>
+        <header className="sticky top-0 z-40 backdrop-blur-md px-5 py-3.5 flex items-center justify-between border-b border-[#efe7d3]" style={{ background: CARD_BG + 'f2' }}>
+          <Logo size={28} cutoutColor={CARD_BG} />
 
-          <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-800">
+          <div className="flex items-center gap-1 font-mono text-xs font-bold" style={{ color: INK }}>
             <span>@{username}</span>
-            <span className="text-[10px] text-blue-400">▾</span>
+            <span className="text-[10px]" style={{ color: ACCENT }}>▾</span>
           </div>
 
           <button
             onClick={() => setMenuOpen(true)}
-            className="w-7 h-7 flex flex-col justify-center items-end gap-1 px-0.5 text-slate-600 hover:text-slate-900 cursor-pointer"
+            className="w-7 h-7 flex flex-col justify-center items-end gap-1 px-0.5 cursor-pointer opacity-70 hover:opacity-100"
             aria-label="Settings"
           >
-            <span className="w-4 h-[1.5px] bg-slate-700 rounded-full" />
-            <span className="w-3.5 h-[1.5px] bg-slate-700 rounded-full" />
-            <span className="w-2.5 h-[1.5px] bg-slate-700 rounded-full" />
+            <span className="w-4 h-[1.5px] rounded-full" style={{ background: INK }} />
+            <span className="w-3.5 h-[1.5px] rounded-full" style={{ background: INK }} />
+            <span className="w-2.5 h-[1.5px] rounded-full" style={{ background: INK }} />
           </button>
         </header>
 
         {statusBanner && (
-          <div className="mx-4 mt-2 text-xs text-center font-mono bg-blue-100/80 border border-blue-200 text-blue-950 py-1.5 px-3 rounded-lg">
+          <div
+            className="mx-4 mt-2 text-xs text-center font-mono py-1.5 px-3 rounded-lg"
+            style={{ background: '#FBEFC8', border: '1px solid #EAD68F', color: INK }}
+          >
             {statusBanner}
           </div>
         )}
 
         <main className="flex-1 overflow-y-auto">
 
-          {/* PROFILE CARD -- same paper-note treatment as the History tab's
-              cards (washi-tape strip, subtle border/shadow), so the
-              metaphor reads as one system instead of one-off. */}
-          <div className="flex flex-col items-center pt-8 pb-5 px-6 mx-4 mt-4 relative bg-white/70 border border-blue-100 rounded-2xl shadow-[2px_3px_0px_0px_rgba(203,222,244,0.5)]">
-            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-14 h-4 bg-blue-100/80 border border-blue-200/50 rounded-xs" />
+          {/* PROFILE CARD */}
+          <div
+            className="flex flex-col items-center pt-8 pb-5 px-6 mx-4 mt-4 relative rounded-2xl border border-[#efe7d3] shadow-[2px_3px_0px_0px_rgba(0,0,0,0.04)]"
+            style={{ background: '#FBF6E8' }}
+          >
+            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-14 h-4 rounded-xs" style={{ background: '#F3E4A8', border: '1px solid #EAD68F' }} />
 
             <div className="relative">
-              <div className="w-22 h-22 rounded-full bg-blue-50 border-2 border-dashed border-blue-300 p-1 shadow-xs">
-                <div className="w-full h-full rounded-full bg-blue-100/60 flex items-center justify-center font-mono font-bold text-lg text-blue-900">
+              <div className="w-22 h-22 rounded-full p-1 shadow-xs" style={{ background: '#FBF1D6', border: '2px dashed #EAD68F' }}>
+                <div className="w-full h-full rounded-full flex items-center justify-center font-mono font-bold text-lg" style={{ background: '#F3E4A8', color: INK }}>
                   {initials}
                 </div>
               </div>
-              <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-blue-700 border-2 border-white flex items-center justify-center text-[10px] text-white font-mono font-bold">
+              <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full border-2 flex items-center justify-center text-[10px] font-mono font-bold" style={{ background: ACCENT, borderColor: CARD_BG, color: INK }}>
                 +
               </div>
             </div>
 
-            <h2 className="text-base font-bold text-slate-900 mt-3 flex items-center gap-1.5">
+            <h2 className="font-serif-stickie text-lg font-bold mt-3 flex items-center gap-1.5" style={{ color: INK }}>
               {fullName}
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600" title="verified" />
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: ACCENT }} title="verified" />
             </h2>
 
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[11px] font-mono text-blue-900/70 bg-blue-100/60 px-2 py-0.5 rounded border border-blue-200/50">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded border" style={{ color: MUTED, background: '#F3E4A8', borderColor: '#EAD68F' }}>
                 {pronouns}
               </span>
-              <span className="text-slate-300">•</span>
-              <span className="text-[11px] text-slate-500 font-mono">{cadence.toLowerCase()} review</span>
+              <span style={{ color: '#d8cba3' }}>•</span>
+              <span className="text-[11px] font-mono" style={{ color: MUTED }}>{cadence.toLowerCase()} review</span>
             </div>
           </div>
 
           {/* TABS (UNDERLINE NAV) */}
-          <div className="sticky top-[52px] z-30 bg-[#f8fbfe] border-b border-blue-200/70 flex">
+          <div className="sticky top-[52px] z-30 border-b flex" style={{ background: CARD_BG, borderColor: '#efe7d3' }}>
             {[
               { id: 'interests', label: 'Interests' },
               { id: 'friends', label: 'Crew' },
@@ -294,13 +299,12 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 py-2.5 text-xs font-mono uppercase tracking-wider relative transition ${
-                  activeTab === tab.id ? 'text-blue-950 font-bold' : 'text-slate-400 hover:text-slate-600'
-                }`}
+                className="flex-1 py-2.5 text-xs font-mono uppercase tracking-wider relative transition"
+                style={{ color: activeTab === tab.id ? INK : '#c2b596', fontWeight: activeTab === tab.id ? 700 : 400 }}
               >
                 {tab.label}
                 {activeTab === tab.id && (
-                  <div className="absolute bottom-0 left-6 right-6 h-[2px] bg-blue-800 rounded-full" />
+                  <div className="absolute bottom-0 left-6 right-6 h-[2px] rounded-full" style={{ background: ACCENT }} />
                 )}
               </button>
             ))}
@@ -308,15 +312,15 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
           {/* TAB PANELS */}
           <div className="p-5 min-h-[340px]">
-            
+
             {/* TAB 1: INTERESTS */}
             {activeTab === 'interests' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500">
+                  <span className="text-[11px] font-mono uppercase tracking-wider" style={{ color: MUTED }}>
                     taste index
                   </span>
-                  <span className="text-[11px] font-mono text-blue-900">
+                  <span className="text-[11px] font-mono" style={{ color: INK }}>
                     {selectedInterests.length} tagged
                   </span>
                 </div>
@@ -328,11 +332,12 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                       <button
                         key={tag}
                         onClick={() => toggleInterest(tag)}
-                        className={`text-xs px-3 py-1 rounded-md font-sans transition ${
+                        className="text-xs px-3 py-1 rounded-md font-sans transition font-medium"
+                        style={
                           isSelected
-                            ? 'bg-blue-100/90 text-blue-950 border border-blue-300/80 shadow-[1px_1px_0px_0px_rgba(186,211,238,0.8)] font-medium'
-                            : 'bg-white text-slate-600 border border-dashed border-slate-300 hover:border-blue-300'
-                        }`}
+                            ? { background: '#F3E4A8', color: INK, border: '1px solid #EAD68F' }
+                            : { background: '#fff', color: MUTED, border: '1px dashed #e0d5b8' }
+                        }
                       >
                         {isSelected ? '✓ ' : '+ '}
                         {tag}
@@ -346,7 +351,8 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                       <button
                         key={tag}
                         onClick={() => toggleInterest(tag)}
-                        className="text-xs px-3 py-1 rounded-md bg-blue-200/70 border border-blue-300 text-blue-950 font-medium"
+                        className="text-xs px-3 py-1 rounded-md font-medium"
+                        style={{ background: ACCENT, color: INK }}
                       >
                         ✓ {tag}
                       </button>
@@ -356,7 +362,8 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                     <button
                       type="button"
                       onClick={() => setShowCustomInput(true)}
-                      className="text-xs px-3 py-1 rounded-md border border-dotted border-blue-400 text-blue-800 hover:bg-blue-50 transition"
+                      className="text-xs px-3 py-1 rounded-md border border-dotted transition"
+                      style={{ borderColor: '#d8b95a', color: INK }}
                     >
                       + custom tag
                     </button>
@@ -372,12 +379,14 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                           if (e.key === 'Enter') handleAddCustomInterest(e);
                           if (e.key === 'Escape') setShowCustomInput(false);
                         }}
-                        className="px-2 py-0.5 text-xs bg-white border border-blue-300 rounded outline-none"
+                        className="px-2 py-0.5 text-xs bg-white border rounded outline-none"
+                        style={{ borderColor: '#d8b95a' }}
                       />
                       <button
                         type="button"
                         onClick={handleAddCustomInterest}
-                        className="text-xs bg-blue-800 text-white px-2 py-0.5 rounded"
+                        className="text-xs px-2 py-0.5 rounded font-semibold"
+                        style={{ background: ACCENT, color: INK }}
                       >
                         add
                       </button>
@@ -387,43 +396,46 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               </div>
             )}
 
-            {/* TAB 2: CREW */}
+            {/* TAB 2: CREW -- same fetch/sort/overdue logic as before;
+                only the visuals changed, plus a real two-tone treatment:
+                cool tint for mutual (on Stickie), warm tint for solo
+                (not on Stickie). Overdue still overrides both with amber. */}
             {activeTab === 'friends' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-1">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500">
+                  <span className="text-[11px] font-mono uppercase tracking-wider" style={{ color: MUTED }}>
                     your crew
                   </span>
                   <button
                     onClick={() => setShowAddFriend(!showAddFriend)}
-                    className="text-[11px] font-mono text-blue-800 hover:underline"
+                    className="text-[11px] font-mono hover:underline font-semibold"
+                    style={{ color: INK }}
                   >
                     {showAddFriend ? 'close' : '+ add contact'}
                   </button>
                 </div>
 
                 {showAddFriend && (
-                  <form onSubmit={handleAddFriend} className="p-3 bg-white border border-blue-200 rounded-xl space-y-2 mb-3 shadow-xs">
+                  <form onSubmit={handleAddFriend} className="p-3 bg-white border rounded-xl space-y-2 mb-3 shadow-xs" style={{ borderColor: '#e6dcc2' }}>
                     <div className="grid grid-cols-2 gap-2">
                       <input
                         type="text"
                         placeholder="Name"
                         value={newFriendName}
                         onChange={(e) => setNewFriendName(e.target.value)}
-                        className="px-2.5 py-1 text-xs border border-blue-200 rounded outline-none"
+                        className="px-2.5 py-1 text-xs border rounded outline-none"
+                        style={{ borderColor: '#e6dcc2' }}
                       />
                       <input
                         type="tel"
                         placeholder="Phone"
                         value={newFriendPhone}
                         onChange={(e) => setNewFriendPhone(e.target.value)}
-                        className="px-2.5 py-1 text-xs border border-blue-200 rounded outline-none"
+                        className="px-2.5 py-1 text-xs border rounded outline-none"
+                        style={{ borderColor: '#e6dcc2' }}
                       />
                     </div>
-                    <button
-                      type="submit"
-                      className="w-full py-1 bg-blue-800 text-white rounded text-xs font-medium"
-                    >
+                    <button type="submit" className="w-full py-1 rounded text-xs font-semibold" style={{ background: ACCENT, color: INK }}>
                       save to index
                     </button>
                   </form>
@@ -431,37 +443,39 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
                 <div className="space-y-2">
                   {crewLoading && crew.mutual.length === 0 && crew.solo.length === 0 && (
-                    <p className="text-[11px] text-slate-400 font-mono text-center py-4">
-                      loading...
-                    </p>
+                    <p className="text-[11px] font-mono text-center py-4" style={{ color: '#c2b596' }}>loading...</p>
                   )}
                   {!crewLoading && crew.mutual.length === 0 && crew.solo.length === 0 && (
-                    <p className="text-[11px] text-slate-400 font-mono text-center py-4">
-                      no crew yet
-                    </p>
+                    <p className="text-[11px] font-mono text-center py-4" style={{ color: '#c2b596' }}>no crew yet</p>
                   )}
 
                   {crew.mutual.map((friend) => (
                     <div
                       key={friend.other_phone}
-                      className={`p-2.5 border rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(219,231,246,0.5)] ${
-                        friend.overdue ? 'bg-amber-50 border-amber-300' : 'bg-white border-blue-100'
-                      }`}
+                      className="p-2.5 border rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(0,0,0,0.03)]"
+                      style={
+                        friend.overdue
+                          ? { background: '#FDF2D9', borderColor: '#EAC97A' }
+                          : { background: '#EEF3F6', borderColor: '#D8E3E9' }
+                      }
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center font-mono text-xs font-bold text-blue-900">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold" style={{ background: '#DCE7ED', border: '1px solid #C6D6DF', color: INK }}>
                           {friend.other_name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <div className="text-xs font-bold flex items-center gap-1.5" style={{ color: INK }}>
                             {friend.other_name}
+                            <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded" style={{ background: '#DCE7ED', color: '#4a6472' }}>
+                              on stickie
+                            </span>
                             {friend.overdue && (
-                              <span className="text-[9px] font-mono uppercase text-amber-700 bg-amber-200/70 px-1.5 py-0.5 rounded">
+                              <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded" style={{ background: '#EAC97A', color: '#5c4108' }}>
                                 overdue
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] font-mono text-slate-500">
+                          <div className="text-[10px] font-mono" style={{ color: MUTED }}>
                             {friend.days_since === null ? 'never hung out' : `seen ${friend.days_since}d ago`}
                             {' '}• checked every {crew.nudge_threshold_days || 30}d
                           </div>
@@ -470,7 +484,8 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
                       <button
                         onClick={() => nudgeOne('mutual', friend.other_phone)}
-                        className="text-[10px] font-mono px-2.5 py-1 rounded border border-blue-300 text-blue-900 hover:bg-blue-50"
+                        className="text-[10px] font-mono px-2.5 py-1 rounded border font-semibold"
+                        style={{ borderColor: '#B8CCD6', color: '#3d5a68', background: '#fff' }}
                       >
                         nudge
                       </button>
@@ -480,30 +495,36 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                   {crew.solo.map((contact) => (
                     <div
                       key={contact.key}
-                      className={`p-2.5 border rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(219,231,246,0.5)] ${
-                        contact.overdue ? 'bg-amber-50 border-amber-300' : 'bg-white border-blue-100'
-                      }`}
+                      className="p-2.5 border rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(0,0,0,0.03)]"
+                      style={
+                        contact.overdue
+                          ? { background: '#FDF2D9', borderColor: '#EAC97A' }
+                          : { background: '#FBEEDD', borderColor: '#EAD8B8' }
+                      }
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center font-mono text-xs font-bold text-blue-900">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs font-bold" style={{ background: '#F3E0BF', border: '1px solid '+'#E2C692', color: INK }}>
                           {contact.other_name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <div className="text-xs font-bold flex items-center gap-1.5" style={{ color: INK }}>
                             {contact.other_name}
-                            <span className="text-[10px] font-normal text-slate-400">not on Stickie</span>
+                            <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded" style={{ background: '#F3E0BF', color: '#8a5a1f' }}>
+                              not on stickie
+                            </span>
                             {contact.overdue && (
-                              <span className="text-[9px] font-mono uppercase text-amber-700 bg-amber-200/70 px-1.5 py-0.5 rounded">
+                              <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded" style={{ background: '#EAC97A', color: '#5c4108' }}>
                                 overdue
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
+                          <div className="text-[10px] font-mono flex items-center gap-1" style={{ color: MUTED }}>
                             {contact.days_since === null ? 'never met' : `seen ${contact.days_since}d ago`}
                             <select
                               value={DAYS_TO_CADENCE[contact.cadence_days] || 'Monthly'}
                               onChange={(e) => updateContactCadence(contact.key, e.target.value)}
-                              className="text-[10px] font-mono bg-transparent border-none outline-none text-blue-700"
+                              className="text-[10px] font-mono bg-transparent border-none outline-none font-semibold"
+                              style={{ color: '#8a5a1f' }}
                             >
                               <option value="Weekly">weekly</option>
                               <option value="Bi-weekly">bi-weekly</option>
@@ -515,7 +536,8 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
                       <button
                         onClick={() => nudgeOne('solo', contact.key)}
-                        className="text-[10px] font-mono px-2.5 py-1 rounded border border-blue-300 text-blue-900 hover:bg-blue-50"
+                        className="text-[10px] font-mono px-2.5 py-1 rounded border font-semibold"
+                        style={{ borderColor: '#E2C692', color: '#8a5a1f', background: '#fff' }}
                       >
                         nudge
                       </button>
@@ -525,66 +547,45 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               </div>
             )}
 
-            {/* TAB 3: PAST HANGOUTS (PHYSICAL STICKY NOTE BOARD) */}
+            {/* TAB 3: HISTORY -- vertical timeline, one confirmed hangout
+                per stop, alternating sides. */}
             {activeTab === 'hangouts' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-1">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500">
-                    pinned memories
+                  <span className="text-[11px] font-mono uppercase tracking-wider" style={{ color: MUTED }}>
+                    timeline
                   </span>
-                  <span className="text-[10px] font-mono text-blue-900">
-                    {PAST_HANGOUTS.length} notes
+                  <span className="text-[10px] font-mono" style={{ color: INK }}>
+                    {PAST_HANGOUTS.length} logged
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-1">
-                  {PAST_HANGOUTS.map((event) => (
-                    <div
-                      key={event.id}
-                      className={`relative p-3.5 border rounded-lg flex flex-col justify-between min-h-[145px] transition-transform hover:scale-[1.02] cursor-default ${event.color}`}
-                    >
-                      {/* Translucent Washi Tape Strip at top */}
-                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-12 h-3.5 bg-white/70 border border-slate-300/40 rounded-xs shadow-2xs backdrop-blur-2xs" />
-
-                      {/* Header */}
-                      <div className="flex justify-between items-start pt-1">
-                        <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500">
-                          {event.date}
-                        </span>
-                        <span className="text-[8px] font-mono text-blue-900 bg-white/80 px-1 py-0.5 rounded border border-slate-200/60">
-                          done
-                        </span>
+                <div className="relative pl-6">
+                  <div className="absolute left-[7px] top-1 bottom-1 w-[2px]" style={{ background: '#EAD68F' }} />
+                  <div className="space-y-5">
+                    {PAST_HANGOUTS.map((event, i) => (
+                      <div key={event.id} className="relative">
+                        <div
+                          className="absolute -left-6 top-1 w-4 h-4 rounded-full border-2 flex items-center justify-center text-[8px] font-mono font-bold"
+                          style={{ background: ACCENT, borderColor: CARD_BG, color: INK }}
+                        >
+                          {i + 1}
+                        </div>
+                        <div
+                          className="rounded-xl p-3 border shadow-[1px_2px_0px_0px_rgba(0,0,0,0.04)]"
+                          style={{ background: i % 2 === 0 ? '#FBEEDD' : '#EEF3F6', borderColor: i % 2 === 0 ? '#EAD8B8' : '#D8E3E9' }}
+                        >
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-[9px] font-mono uppercase tracking-wider" style={{ color: MUTED }}>{event.month}</span>
+                            <span className="text-[9px] font-mono" style={{ color: MUTED }}>{event.date}</span>
+                          </div>
+                          <h4 className="font-serif-stickie text-sm font-bold mt-1" style={{ color: INK }}>{event.title}</h4>
+                          <p className="text-[10px] font-mono mt-0.5" style={{ color: MUTED }}>@{event.venue}</p>
+                          <p className="text-[10px] italic mt-1 leading-snug" style={{ color: '#a89877' }}>"{event.note}"</p>
+                          <div className="text-[9px] font-mono mt-2 pt-1.5 border-t" style={{ color: MUTED, borderColor: '#e6dcc2' }}>{event.attendees}</div>
+                        </div>
                       </div>
-
-                      {/* Body */}
-                      <div className="my-1.5">
-                        <h4 className="text-xs font-bold text-slate-900 leading-tight">
-                          {event.title}
-                        </h4>
-                        <p className="text-[10px] text-slate-600 font-mono mt-0.5">
-                          @{event.venue}
-                        </p>
-                        <p className="text-[10px] text-slate-500 italic mt-1 leading-snug">
-                          "{event.note}"
-                        </p>
-                      </div>
-
-                      {/* Footer */}
-                      <div className="text-[9px] font-mono text-slate-400 border-t border-slate-300/30 pt-1">
-                        {event.attendees}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Wrapped Post-it Note */}
-                  <div className="relative p-3.5 border border-dashed border-blue-300 rounded-lg flex flex-col justify-center items-center text-center min-h-[145px] bg-white/60 shadow-[2px_3px_0px_0px_rgba(203,222,244,0.5)] rotate-[-1deg]">
-                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-10 h-3 bg-blue-100/80 border border-blue-200/50 rounded-xs" />
-                    <span className="text-xs font-mono font-bold text-blue-950 uppercase">
-                      Friend Wrapped
-                    </span>
-                    <span className="text-[10px] text-slate-500 mt-1 font-mono">
-                      recap note ready
-                    </span>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -594,8 +595,8 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
         </main>
 
         {/* MINIMAL FOOTER */}
-        <footer className="sticky bottom-0 z-40 bg-[#f8fbfe]/95 backdrop-blur-md border-t border-blue-100 py-3 flex items-center justify-center">
-          <span className="text-[11px] font-mono text-slate-400 tracking-wider">
+        <footer className="sticky bottom-0 z-40 backdrop-blur-md border-t py-3 flex items-center justify-center" style={{ background: CARD_BG + 'f2', borderColor: '#efe7d3' }}>
+          <span className="text-[11px] font-mono tracking-wider" style={{ color: '#c2b596' }}>
             stickie • plans made simple
           </span>
         </footer>
@@ -605,156 +606,150 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
       {/* DRAWER / SETTINGS */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            onClick={() => setMenuOpen(false)}
-            className="fixed inset-0 bg-slate-900/20 backdrop-blur-2xs"
-          />
+          <div onClick={() => setMenuOpen(false)} className="fixed inset-0 bg-black/30 backdrop-blur-2xs" />
 
-          <div className="relative w-full max-w-xs bg-[#fafcfe] border-l border-blue-200 p-6 flex flex-col justify-between overflow-y-auto h-full shadow-xl z-10">
-            <div className="space-y-5">
-              <div className="flex items-center justify-between border-b border-blue-100 pb-3">
-                <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-800">
-                  Settings
-                </h3>
-                <button
-                  onClick={() => setMenuOpen(false)}
-                  className="text-xs font-mono text-slate-400 hover:text-slate-700"
-                >
+          <div className="relative w-full max-w-xs p-6 flex flex-col justify-between overflow-y-auto h-full shadow-xl z-10" style={{ background: CARD_BG }}>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: '#efe7d3' }}>
+                <h3 className="font-serif-stickie text-base font-bold" style={{ color: INK }}>Settings</h3>
+                <button onClick={() => setMenuOpen(false)} className="text-xs font-mono" style={{ color: MUTED }}>
                   [close]
                 </button>
               </div>
 
+              {/* Profile & Account */}
               <div className="space-y-3">
+                <div className="text-[10px] font-mono uppercase tracking-wider font-bold" style={{ color: '#8a5a1f' }}>
+                  Profile &amp; Account
+                </div>
                 <div>
-                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                    Display Name
-                  </label>
+                  <label className="block text-[10px] font-mono uppercase mb-1" style={{ color: MUTED }}>Display Name</label>
                   <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-2.5 py-1 text-xs bg-white border border-blue-200 rounded outline-none"
+                    type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border rounded outline-none"
+                    style={{ borderColor: '#e6dcc2' }}
                   />
                 </div>
-
                 <div>
-                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                    Handle
-                  </label>
+                  <label className="block text-[10px] font-mono uppercase mb-1" style={{ color: MUTED }}>Phone Number</label>
                   <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-2.5 py-1 text-xs bg-white border border-blue-200 rounded outline-none"
+                    type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border rounded outline-none"
+                    style={{ borderColor: '#e6dcc2' }}
                   />
                 </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                      Pronouns
-                    </label>
-                    <input
-                      type="text"
-                      value={pronouns}
-                      onChange={(e) => setPronouns(e.target.value)}
-                      className="w-full px-2.5 py-1 text-xs bg-white border border-blue-200 rounded outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                      Check in with crew every
-                    </label>
-                    <select
-                      value={cadence}
-                      onChange={(e) => updateCadence(e.target.value)}
-                      className="w-full px-1.5 py-1 text-xs bg-white border border-blue-200 rounded outline-none"
-                    >
-                      <option value="Weekly">week</option>
-                      <option value="Bi-weekly">2 weeks</option>
-                      <option value="Monthly">month</option>
-                    </select>
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                    Your Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-2.5 py-1 text-xs bg-white border border-blue-200 rounded outline-none"
-                  />
+                  <label className="block text-[10px] font-mono uppercase mb-1" style={{ color: MUTED }}>Pronouns</label>
+                  <select
+                    value={pronouns} onChange={(e) => setPronouns(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border rounded outline-none"
+                    style={{ borderColor: '#e6dcc2' }}
+                  >
+                    <option value="they/them">they/them</option>
+                    <option value="she/her">she/her</option>
+                    <option value="he/him">he/him</option>
+                  </select>
                 </div>
-
-                {/* Manual text commands anyone can send to Stickie */}
-                <div className="pt-2 border-t border-blue-100">
-                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                    Text Commands
-                  </label>
-                  <div className="space-y-2">
-                    <div className="bg-white border border-blue-200 rounded px-2.5 py-1.5">
-                      <div className="text-xs font-mono font-bold text-blue-800">/website</div>
-                      <div className="text-[10px] text-slate-500">
-                        texts you back a link straight into your dashboard, already signed in
-                      </div>
-                    </div>
-                    <div className="bg-white border border-blue-200 rounded px-2.5 py-1.5">
-                      <div className="text-xs font-mono font-bold text-blue-800">/plan &lt;activity&gt;</div>
-                      <div className="text-[10px] text-slate-500">
-                        e.g. "/plan pickleball" — skips the wait-and-detect and starts a real group plan right now
-                      </div>
-                    </div>
-                    <div className="bg-white border border-blue-200 rounded px-2.5 py-1.5">
-                      <div className="text-xs font-mono font-bold text-blue-800">/nudge</div>
-                      <div className="text-[10px] text-slate-500">
-                        texts you who's overdue in your crew with a suggested plan for each — reply with a number to approve before your friend sees anything
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Internal demo/test tools only -- not something a real
-                    user should see by default. Collapsed, visually muted,
-                    kept separate from real settings above. */}
-                <details className="pt-2 border-t border-slate-200">
-                  <summary className="text-[10px] font-mono uppercase text-slate-400 cursor-pointer select-none">
-                    Debug tools (hackathon demo only)
-                  </summary>
-                  <div className="mt-2 space-y-2 opacity-70">
-                    <button
-                      onClick={triggerProximitySpark}
-                      className="w-full py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded text-xs font-mono font-medium transition active:scale-[0.98]"
-                    >
-                      Fire Proximity Spark (Flow C demo)
-                    </button>
-                    <div className="flex gap-1.5">
-                      {['Active', 'Busy', 'Off'].map((mode) => (
-                        <button
-                          key={mode}
-                          onClick={() => setPresence(mode)}
-                          className={`flex-1 py-1 text-xs font-mono rounded border transition ${
-                            presence === mode
-                              ? 'bg-slate-600 text-white border-slate-700'
-                              : 'bg-white text-slate-500 border-slate-300'
-                          }`}
-                        >
-                          {mode}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </details>
               </div>
+
+              {/* Preferences & Scheduling */}
+              <div className="space-y-3">
+                <div className="text-[10px] font-mono uppercase tracking-wider font-bold" style={{ color: '#8a5a1f' }}>
+                  Preferences &amp; Scheduling
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase mb-1" style={{ color: MUTED }}>Check-in with crew every</label>
+                  <select
+                    value={cadence} onChange={(e) => updateCadence(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border rounded outline-none"
+                    style={{ borderColor: '#e6dcc2' }}
+                  >
+                    <option value="Weekly">1 week</option>
+                    <option value="Bi-weekly">2 weeks</option>
+                    <option value="Monthly">1 month</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Connected Services */}
+              <div className="space-y-2">
+                <div className="text-[10px] font-mono uppercase tracking-wider font-bold" style={{ color: '#8a5a1f' }}>
+                  Connected Services
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded-lg border" style={{ background: '#FBEEDD', borderColor: '#EAD8B8' }}>
+                  <div>
+                    <div className="text-xs font-bold" style={{ color: INK }}>Google Calendar</div>
+                    <div className="text-[10px] font-mono" style={{ color: hasCalendar ? '#4a7a4a' : MUTED }}>
+                      {hasCalendar === null ? 'checking...' : hasCalendar ? 'Connected (syncing active)' : 'Not connected'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={connectCalendar}
+                    className="text-[10px] font-mono px-2.5 py-1 rounded border font-semibold"
+                    style={{ borderColor: '#E2C692', color: '#8a5a1f', background: '#fff' }}
+                  >
+                    {hasCalendar ? 'reconnect' : 'connect'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Text Commands */}
+              <div className="space-y-2">
+                <div className="text-[10px] font-mono uppercase tracking-wider font-bold" style={{ color: '#8a5a1f' }}>
+                  Text Commands
+                </div>
+                {[
+                  { cmd: '/website', desc: 'Texts you back a link straight into your dashboard, already signed in.' },
+                  { cmd: '/plan <activity>', desc: 'Starts a real group plan right now.' },
+                  { cmd: '/nudge', desc: "Triggers your overdue crew check-ins — reply with a number to approve before your friend sees anything." },
+                ].map((c) => (
+                  <div key={c.cmd} className="rounded-lg px-2.5 py-1.5 border" style={{ background: '#fff', borderColor: '#e6dcc2' }}>
+                    <div className="text-xs font-mono font-bold" style={{ color: '#8a5a1f' }}>{c.cmd}</div>
+                    <div className="text-[10px]" style={{ color: MUTED }}>{c.desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Internal demo/test tools only -- not something a real
+                  user should see by default. */}
+              <details className="pt-2 border-t" style={{ borderColor: '#efe7d3' }}>
+                <summary className="text-[10px] font-mono uppercase cursor-pointer select-none" style={{ color: '#c2b596' }}>
+                  Debug tools (hackathon demo only)
+                </summary>
+                <div className="mt-2 space-y-2 opacity-70">
+                  <button
+                    onClick={triggerProximitySpark}
+                    className="w-full py-1.5 rounded text-xs font-mono font-medium transition active:scale-[0.98]"
+                    style={{ background: '#6b6355', color: '#fff' }}
+                  >
+                    Fire Proximity Spark (Flow C demo)
+                  </button>
+                  <div className="flex gap-1.5">
+                    {['Active', 'Busy', 'Off'].map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setPresence(mode)}
+                        className="flex-1 py-1 text-xs font-mono rounded border transition"
+                        style={
+                          presence === mode
+                            ? { background: '#6b6355', color: '#fff', borderColor: '#6b6355' }
+                            : { background: '#fff', color: MUTED, borderColor: '#e6dcc2' }
+                        }
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </details>
             </div>
 
             <button
               onClick={() => { localStorage.removeItem('stickie_phone'); window.location.href = '/'; }}
-              className="w-full mt-6 py-2 rounded text-xs font-mono border border-slate-300 text-slate-600 hover:bg-slate-100 transition"
+              className="w-full mt-6 py-2.5 rounded-xl text-xs font-mono font-semibold border transition"
+              style={{ borderColor: '#e0d5b8', color: INK }}
             >
-              sign out
+              Sign Out
             </button>
           </div>
         </div>
