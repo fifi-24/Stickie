@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from typing import Optional
 
 from app.clients.sendblue import send_message
 from app.commands import try_handle_command
@@ -137,6 +138,7 @@ class ProximityRequest(BaseModel):
     user_b_name: str
     target_phone: str
     location_name: str
+    presence: Optional[str] = "Active"
 
 
 class ConciergeRequest(BaseModel):
@@ -146,19 +148,31 @@ class ConciergeRequest(BaseModel):
     intent: str
 
 
-@app.post("/api/simulate-proximity")
+@app.post("/api/simulate-proximity") # or @app.post
 def simulate_proximity(req: ProximityRequest):
-    """Flow C: Spontaneous Proximity Spark."""
-    text = (
-        f"Stickie Proximity Alert: {req.user_a_name} and {req.user_b_name} are both at "
-        f"{req.location_name} right now! Down for a quick 15-min coffee break?"
-    )
-    try:
-        res = send_message(number=req.target_phone, text=text)
-        return {"status": "success", "response": res}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    print(f"👉 Proximity requested for {req.target_phone} with presence: {req.presence}")
 
+    # Case-insensitive check
+    current_status = (req.presence or "Active").strip().lower()
+    if current_status != "active":
+        return {
+            "skipped": True,
+            "message": f"Proximity suppressed. Status is '{req.presence}'."
+        }
+
+    # Format the message
+    msg = (
+        f"⚡️ Proximity Spark! You and {req.user_b_name} are both near "
+        f"{req.location_name} right now. Grab a quick 15-min coffee break?"
+    )
+
+    try:
+        res = send_message(req.target_phone, msg)
+        print(f"✅ Sendblue response: {res}")
+        return {"skipped": False, "message": "Proximity notification sent successfully."}
+    except Exception as exc:
+        print(f"❌ Sendblue send failed: {exc}")
+        return {"skipped": True, "message": f"Sendblue error: {exc}"}
 
 @app.post("/api/simulate-concierge")
 def simulate_concierge(req: ConciergeRequest):
