@@ -17,6 +17,17 @@ from app.planning import post_proposal_to_group
 COMMAND_PATTERN = re.compile(r"^/(\w+)\s*(.*)$", re.DOTALL)
 
 
+def _safe_send(phone: str, text: str) -> None:
+    """A delivery hiccup (unverified number, transient SendBlue error)
+    replying to a manual command shouldn't 500 the whole webhook --
+    matches the best-effort pattern already used elsewhere in this app
+    (_add_to_everyones_calendar, crew_digest._send_items)."""
+    try:
+        send_message(phone, text)
+    except Exception as exc:
+        print(f"Couldn't text {phone}: {exc}")
+
+
 def handle_website_command(sender: str) -> None:
     """/website -- texts back a link that drops the sender straight into
     the real dashboard if they're already onboarded. Reuses the exact
@@ -58,16 +69,17 @@ def handle_join_command(sender: str) -> None:
     reference -- planning.py, crew_digest.py, mutual_mode.py -- keeps
     pointing at the same list object and sees the new member too."""
     phone = normalize_phone(sender)
-    if phone in DEMO_GROUP_NUMBERS:
-        send_message(phone, "You're already in the crew!")
-        return
-    DEMO_GROUP_NUMBERS.append(phone)
-    send_message(
-        phone,
-        "You're in! Next time this group plans something, you'll get a private "
+    already_in = phone in DEMO_GROUP_NUMBERS
+    if not already_in:
+        DEMO_GROUP_NUMBERS.append(phone)
+    text = (
+        "You're already in the crew!"
+        if already_in
+        else "You're in! Next time this group plans something, you'll get a private "
         "heads-up to pick a time too. Text /website any time for a link to your "
-        "own dashboard (calendar connect is optional).",
+        "own dashboard (calendar connect is optional)."
     )
+    _safe_send(phone, text)
 
 
 def handle_met_command(sender: str, name: str) -> None:
@@ -82,7 +94,7 @@ def handle_met_command(sender: str, name: str) -> None:
     confirmed plan update the drift clock identically."""
     name = name.strip()
     if not name:
-        send_message(sender, "Who'd you meet? Try: /met Nancy")
+        _safe_send(sender, "Who'd you meet? Try: /met Nancy")
         return
 
     other_phone = None
@@ -100,7 +112,7 @@ def handle_met_command(sender: str, name: str) -> None:
         if contact is not None:
             contact.last_met = dt.date.today()
             session.commit()
-            send_message(sender, f"Got it -- logged that you just met up with {contact.name}.")
+            _safe_send(sender, f"Got it -- logged that you just met up with {contact.name}.")
             return
 
         other = (
@@ -113,10 +125,10 @@ def handle_met_command(sender: str, name: str) -> None:
 
     if other_phone:
         record_hangout([sender, other_phone])
-        send_message(sender, f"Got it -- logged that you and {other_name} just hung out.")
+        _safe_send(sender, f"Got it -- logged that you and {other_name} just hung out.")
         return
 
-    send_message(sender, f"Couldn't find anyone named '{name}' in your crew or contacts.")
+    _safe_send(sender, f"Couldn't find anyone named '{name}' in your crew or contacts.")
 
 
 def handle_nudge_command(sender: str) -> None:
