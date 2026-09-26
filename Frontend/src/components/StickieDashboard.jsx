@@ -91,16 +91,28 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
   const [showCustomInput, setShowCustomInput] = useState(false);
 
   const [crew, setCrew] = useState({ mutual: [], solo: [] });
+  const [crewLoading, setCrewLoading] = useState(false);
   const [newFriendName, setNewFriendName] = useState('');
   const [newFriendPhone, setNewFriendPhone] = useState('');
   const [showAddFriend, setShowAddFriend] = useState(false);
 
+  // Overdue people surface first within each section -- sort is stable
+  // so people with the same overdue status keep their original order.
+  const sortOverdueFirst = (list) =>
+    [...list].sort((a, b) => (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0));
+
   const fetchCrew = () => {
     if (!phone) return;
+    setCrewLoading(true);
     fetch(`${API_BASE}/crew?phone=${encodeURIComponent(phone)}`)
       .then((r) => r.json())
-      .then(setCrew)
-      .catch(() => {});
+      .then((data) => setCrew({
+        mutual: sortOverdueFirst(data.mutual || []),
+        solo: sortOverdueFirst(data.solo || []),
+        nudge_threshold_days: data.nudge_threshold_days,
+      }))
+      .catch(() => {})
+      .finally(() => setCrewLoading(false));
   };
 
   useEffect(() => {
@@ -418,7 +430,12 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                 )}
 
                 <div className="space-y-2">
-                  {crew.mutual.length === 0 && crew.solo.length === 0 && (
+                  {crewLoading && crew.mutual.length === 0 && crew.solo.length === 0 && (
+                    <p className="text-[11px] text-slate-400 font-mono text-center py-4">
+                      loading...
+                    </p>
+                  )}
+                  {!crewLoading && crew.mutual.length === 0 && crew.solo.length === 0 && (
                     <p className="text-[11px] text-slate-400 font-mono text-center py-4">
                       no crew yet
                     </p>
