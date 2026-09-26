@@ -35,23 +35,13 @@ const DAYS_TO_CADENCE = { 7: 'Weekly', 14: 'Bi-weekly', 30: 'Monthly' };
 
 const STICKY_SHADOW = '0 1px 3px rgba(0,0,0,0.06), 2px 7px 15px -3px rgba(60, 45, 10, 0.12)';
 
-function Logo({ size = 28, cutoutColor = DESK_BG, onClick }) {
+function Logo({ size = 40, onClick }) {
   return (
     <div
       onClick={onClick}
-      className={`rounded-sm relative overflow-hidden shadow-sm shrink-0 transition-transform active:scale-95 ${onClick ? 'cursor-pointer' : ''}`}
-      style={{ background: '#FACC15', width: size, height: size, boxShadow: '1px 2px 5px rgba(0,0,0,0.15)' }}
-    >
-      <div
-        className="absolute rotate-45"
-        style={{
-          background: cutoutColor,
-          width: size * 0.55,
-          height: size * 0.55,
-          top: -size * 0.28,
-          right: -size * 0.28,
-        }}
-      />
+      style={{ background: '#FACC15', width: size, height: size, transform: 'rotate(-0.8deg)'}}
+    ><img src="../stickieLogo.png"></img>
+      
     </div>
   );
 }
@@ -258,7 +248,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
         <div className="w-full max-w-md min-h-screen flex flex-col border-x border-[#d8cdb4]" style={{ background: DESK_BG }}>
           <header className="px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Logo size={30} cutoutColor={DESK_BG} onClick={() => setView('dashboard')} />
+              <Logo size={40} cutoutColor={DESK_BG} onClick={() => setView('dashboard')} />
               <h1 className="font-serif text-lg font-bold" style={{ color: INK }}>Settings</h1>
             </div>
             <button
@@ -493,7 +483,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
         {/* TOP BAR */}
         <header className="sticky top-0 z-40 backdrop-blur-md px-5 py-3.5 flex items-center justify-between bg-[#fbf8f1]/90">
-          <Logo size={28} cutoutColor={DESK_BG} />
+          <Logo size={40} cutoutColor={DESK_BG} />
           <button
             onClick={() => setView('settings')}
             className="w-7 h-7 flex flex-col justify-center items-end gap-1 px-0.5 cursor-pointer opacity-70 hover:opacity-100"
@@ -631,7 +621,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                 <p className="text-xs font-mono text-center py-6 text-stone-400">Loading sticky pins...</p>
               )}
 
-              {/* 2-Column Square Grid for Crew Notes */}
+              {/* 3-Column Square Grid for Crew Notes */}
               <div className="grid grid-cols-3 gap-3 pt-3">
                 {/* MUTUAL STICKIES (Square Blue/Yellow Notes) */}
                 {crew.mutual.map((friend, idx) => (
@@ -665,7 +655,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
                     {/* Middle Info */}
                     <div className="my-auto py-1">
-                      <div className="text-xs font-bold truncate leading-tight" style={{ color: INK }}>
+                      <div className="text-xs font-bold truncate leading-tight uppercase" style={{ color: INK }}>
                         {friend.other_name}
                       </div>
                       <span className="text-[8px] font-mono uppercase tracking-wider text-sky-900 block mt-0.5">
@@ -703,11 +693,8 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
                     {/* Top Row: Avatar & Status */}
                     <div className="flex items-start justify-between">
-                      <div
-                        className="w-8 h-8 rounded-xs flex items-center justify-center font-mono text-xs font-bold shadow-2xs bg-white/90 border border-amber-300"
-                        style={{ color: INK }}
-                      >
-                        {contact.other_name.slice(0, 2).toUpperCase()}
+                    <div className="text-xs font-bold truncate leading-tight uppercase" style={{ color: INK }}>
+                        {contact.other_name}
                       </div>
                       {contact.overdue && (
                         <span className="text-[8px] font-mono uppercase px-1 py-0.5 rounded-xs bg-orange-400 text-white font-bold">
@@ -718,9 +705,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
                     {/* Middle Info */}
                     <div className="my-auto py-1">
-                      <div className="text-xs font-bold truncate leading-tight" style={{ color: INK }}>
-                        {contact.other_name}
-                      </div>
+                      
                       <div className="text-[9px] font-mono mt-0.5" style={{ color: MUTED }}>
                         {contact.days_since === null ? 'not met yet' : `met ${contact.days_since}d ago`}
                       </div>
