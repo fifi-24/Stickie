@@ -115,10 +115,12 @@ def oauth_google_callback(code: str, state: str) -> RedirectResponse:
     number we sent in oauth_google_start. Stores the real credentials on
     that user's row -- this is what makes their own calendar usable
     later, instead of only Bhaumi's. Sends them straight back into the
-    site (same tab, same phone/browser that started onboarding, so
-    stickie_phone is already in its localStorage) instead of leaving them
-    on a dead-end "close this tab" page -- the site's own status check
-    now sees has_calendar=true and shows the real dashboard immediately."""
+    site with their phone as an explicit ?phone= param -- not relying on
+    stickie_phone already being in this tab's localStorage, since that
+    can't be guaranteed (different tab, cleared storage, etc). The
+    site's own status check then sees has_calendar=true and shows the
+    real dashboard immediately, instead of leaving them on a dead-end
+    "close this tab" page or bouncing them back into onboarding."""
     token_json = exchange_code_for_token(code, state)
 
     with get_session() as session:
@@ -130,4 +132,4 @@ def oauth_google_callback(code: str, state: str) -> RedirectResponse:
         user.google_token = token_json
         session.commit()
 
-    return RedirectResponse(FRONTEND_BASE_URL)
+    return RedirectResponse(f"{FRONTEND_BASE_URL}/?phone={state}")

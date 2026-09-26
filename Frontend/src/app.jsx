@@ -14,10 +14,26 @@ export default function App() {
   const [checkingToken, setCheckingToken] = useState(true);
 
   // A magic-link visit looks like /?token=... — verify it once, then
-  // strip it from the URL so refreshing doesn't try to reuse it.
+  // strip it from the URL so refreshing doesn't try to reuse it. A visit
+  // straight back from the Google Calendar OAuth callback instead looks
+  // like /?phone=... -- no verification needed there since our own
+  // backend already completed and validated that round trip; this path
+  // exists so the calendar step never depends on this exact browser
+  // tab/origin already having the right phone in localStorage from
+  // earlier in onboarding.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    const phoneParam = params.get('phone');
+
+    if (phoneParam) {
+      localStorage.setItem('stickie_phone', phoneParam);
+      setPhone(phoneParam);
+      window.history.replaceState({}, '', '/');
+      setCheckingToken(false);
+      return;
+    }
+
     if (!token) {
       setCheckingToken(false);
       return;
