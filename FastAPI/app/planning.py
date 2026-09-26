@@ -17,6 +17,7 @@ from app.clients.sendblue import send_group_message
 from app.config import DEMO_GROUP_NUMBERS
 from app.conversation import clear as clear_conversation
 from app.db import Plan, User, get_session
+from app.mutual_mode import record_hangout
 from app.primitives import propose_options_and_await_reply
 
 # record_time_pick() does a read-modify-write on row.rsvps (load the JSON
@@ -232,6 +233,7 @@ def record_time_pick(sender: str, resolved_time: str) -> None:
         activity, venue = _active_plan_activity, row.venue
 
     _add_to_everyones_calendar(activity, venue, winning_time)
+    record_hangout(DEMO_GROUP_NUMBERS)
 
     link = _gcal_link(activity, venue, winning_time)
     print(f"PLAN CONFIRMED: {activity} at {venue}, {winning_label} (votes: {counts})")

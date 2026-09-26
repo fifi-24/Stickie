@@ -97,6 +97,9 @@ class LastHangout(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     group_key: Mapped[str] = mapped_column(String(200), unique=True)  # e.g. sorted "phoneA,phoneB"
     last_hangout_date: Mapped[date] = mapped_column(Date)
+    # Set the day a drift nudge goes out, cleared the next time this pair
+    # actually hangs out -- stops the same gap from nudging twice.
+    last_nudged_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 def init_db() -> None:

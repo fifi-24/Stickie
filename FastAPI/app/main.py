@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from app.clients.sendblue import send_message
 from app.commands import try_handle_command
 from app.conversation import record_message, recent_messages
+from app.mutual_mode import run_mutual_mode_check
 from app.onboarding import router as onboarding_router
 from app.planning import post_proposal_to_group, record_time_pick
 from app.primitives import resolve_pending_reply
@@ -92,6 +93,16 @@ async def sendblue_webhook(request: Request):
         print(f"PROPOSAL SENT: {result}")
 
     return {"status": "received", "from": sender, "preview": content}
+
+
+@app.post("/api/simulate-mutual-check")
+def simulate_mutual_check(force: bool = True) -> dict:
+    """Flow B mutual mode: real drift-nudge check on demand. `force=true`
+    (the default, for demoing/testing live) ignores real dates and nudges
+    every mutual pair regardless; `force=false` runs the actual
+    NUDGE_THRESHOLD/last_nudged_date logic against real LastHangout rows."""
+    nudged = run_mutual_mode_check(force=force)
+    return {"nudged_pairs": nudged}
 
 
 # --- Sophie's manual demo triggers (flows C and B-solo) ---

@@ -8,6 +8,7 @@ import secrets
 from app.clients.sendblue import send_message
 from app.config import FRONTEND_BASE_URL
 from app.db import OnboardingToken, get_session
+from app.mutual_mode import run_mutual_mode_check
 from app.planning import post_proposal_to_group
 
 COMMAND_PATTERN = re.compile(r"^/(\w+)\s*(.*)$", re.DOTALL)
@@ -41,6 +42,14 @@ def handle_plan_command(sender: str, activity: str) -> None:
     print(f"MANUAL /plan by {sender}: {result}")
 
 
+def handle_nudge_command(sender: str) -> None:
+    """/nudge -- manually runs the Flow B mutual-mode drift check right
+    now (force=True: nudges every mutual pair regardless of real dates,
+    same as the demo endpoint) instead of waiting on real elapsed time."""
+    nudged = run_mutual_mode_check(force=True)
+    send_message(sender, f"Nudged {len(nudged)} pair(s)." if nudged else "Nobody to nudge yet.")
+
+
 def try_handle_command(sender: str, content: str | None) -> bool:
     """Returns True if `content` was a recognized command and has already
     been fully handled -- the webhook should stop processing this message
@@ -57,5 +66,8 @@ def try_handle_command(sender: str, content: str | None) -> bool:
         return True
     if command == "plan":
         handle_plan_command(sender, rest)
+        return True
+    if command == "nudge":
+        handle_nudge_command(sender)
         return True
     return False

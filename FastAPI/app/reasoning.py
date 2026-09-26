@@ -104,3 +104,14 @@ def interpret(reply_text: str, options: list[str]) -> str:
             return "declined"
 
     return f"unrecognized reply: {reply_text!r}"
+
+
+# Flow B mutual mode: the drift-nudge message sent to two friends once
+# it's been a while since they last hung out. Tomorrow: replace the body
+# with a real Muse Spark call, asking it for a short, natural nudge that
+# can reference their shared interests/last activity -- the plain
+# template below has no way to do that.
+def generate_nudge_message(days_since: int | None) -> str:
+    if days_since is None:
+        return "hey! you two haven't grabbed anything through Stickie yet -- want to find a time?"
+    return f"hey! it's been {days_since} days since you two hung out -- want to find a time to catch up?"

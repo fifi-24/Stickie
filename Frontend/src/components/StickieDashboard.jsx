@@ -650,6 +650,12 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                         e.g. "/plan pickleball" — skips the wait-and-detect and starts a real group plan right now
                       </div>
                     </div>
+                    <div className="bg-white border border-blue-200 rounded px-2.5 py-1.5">
+                      <div className="text-xs font-mono font-bold text-blue-800">/nudge</div>
+                      <div className="text-[10px] text-slate-500">
+                        checks if you and a friend are overdue for a hangout and nudges you both
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
