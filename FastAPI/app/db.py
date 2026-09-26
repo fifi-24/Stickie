@@ -22,8 +22,12 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(120))
+    name: Mapped[str] = mapped_column(String(120), default="")
     phone: Mapped[str] = mapped_column(String(32), unique=True)
+    # Full OAuth credentials JSON (same shape google_calendar.py already
+    # writes to .google_token.json for Bhaumi's own calendar) - once this
+    # is set, this person's OWN calendar can be used, not just Bhaumi's.
+    google_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     interests: Mapped[list["Interest"]] = relationship(back_populates="user")
@@ -68,6 +72,20 @@ class Plan(Base):
     venue: Mapped[str] = mapped_column(String(200), default="")
     time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     rsvps: Mapped[str] = mapped_column(Text, default="{}")  # small JSON blob: {"+15551234567": "yes"}
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class OnboardingToken(Base):
+    """A one-time magic-link token texted to a phone number so it can
+    open the onboarding page as itself, with no password. Valid for 30
+    minutes (checked against created_at in app), single-use (used flag)."""
+
+    __tablename__ = "onboarding_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    phone: Mapped[str] = mapped_column(String(32))
+    used: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

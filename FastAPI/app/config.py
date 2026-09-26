@@ -25,6 +25,11 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "")
 
 WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "")
+# Where the onboarding magic-link text should point. Set this to whatever
+# publicly reaches the frontend (e.g. a second tunnel) if you want the
+# texted link to open on someone else's phone; defaults to localhost,
+# which only works when opened on this machine.
+FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:5173")
 
 MY_PHONE_NUMBER = os.environ.get("MY_PHONE_NUMBER", "")
 # Comma-separated real, pre-verified demo numbers, e.g. "+19033063505,+1..."

@@ -7,16 +7,29 @@
 import json
 
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.clients.sendblue import send_message
 from app.conversation import record_message, recent_messages
+from app.onboarding import router as onboarding_router
 from app.planning import post_proposal_to_group, record_time_pick
 from app.primitives import resolve_pending_reply
 from app.reasoning import detect_plan_intent
 
 app = FastAPI(title="Stickie Backend")
+
+# The frontend (Vite, port 5173) calls this API from the browser -
+# without CORS enabled, every fetch from it would be silently blocked.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(onboarding_router)
 
 
 @app.get("/health")
