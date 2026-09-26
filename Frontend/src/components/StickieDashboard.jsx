@@ -159,7 +159,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
   };
 
   const nudgeOne = async (kind, key) => {
-    setStatusBanner('📌 Sending nudge...');
+    setStatusBanner('Sending nudge...');
     try {
       const res = await fetch(`${API_BASE}/api/nudge-one`, {
         method: 'POST',
@@ -197,7 +197,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
       return;
     }
 
-    setStatusBanner('⚡️ Dispatching proximity ping...');
+    setStatusBanner('Dispatching proximity ping...');
     try {
       const res = await fetch(`${API_BASE}/api/simulate-proximity`, {
         method: 'POST',
@@ -256,7 +256,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
     return (
       <div className="min-h-screen text-[#2b2620] flex flex-col items-center font-sans" style={{ background: CORK_BG }}>
         <div className="w-full max-w-md min-h-screen flex flex-col border-x border-[#d8cdb4]" style={{ background: DESK_BG }}>
-          <header className="px-5 py-4 flex items-center justify-between border-b border-[#ebdcb9]">
+          <header className="px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Logo size={30} cutoutColor={DESK_BG} onClick={() => setView('dashboard')} />
               <h1 className="font-serif text-lg font-bold" style={{ color: INK }}>Settings</h1>
@@ -281,7 +281,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               }}
             >
               <div className="h-2 absolute top-0 left-0 right-0 rounded-t-sm" style={{ background: POSTIT_YELLOW_TAPE }} />
-              <div className="mb-3" style={labeled}>📌 Profile &amp; Account</div>
+              <div className="mb-3" style={labeled}>Profile &amp; Account</div>
               <div className="space-y-3">
                 <div>
                   <label className="block mb-1 text-[11px] font-mono">Display Name</label>
@@ -321,10 +321,10 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               }}
             >
               <div className="h-2 absolute top-0 left-0 right-0 rounded-t-sm bg-pink-300/30" />
-              <div className="mb-3" style={{ ...labeled, color: '#831843' }}>📌 Availability &amp; Cadence</div>
+              <div className="mb-3" style={{ ...labeled, color: '#831843' }}>Availability &amp; Cadence</div>
               <div className="space-y-3">
                 <div>
-                  <label className="block mb-1 text-[11px] font-mono">Check in with crew every</label>
+                  <label className="block mb-1 text-[11px] font-mono">Check in with friends every</label>
                   <select
                     value={cadence} onChange={(e) => updateCadence(e.target.value)}
                     className="w-full px-3 py-1.5 text-sm bg-white/90 border border-pink-300 rounded-xs outline-none"
@@ -367,7 +367,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
             >
               <div className="h-2 absolute top-0 left-0 right-0 rounded-t-sm bg-emerald-400/20" />
               <div className="flex items-center justify-between mb-2">
-                <span style={{ ...labeled, color: '#065F46' }}>📌 Interests</span>
+                <span style={{ ...labeled, color: '#065F46' }}>Interests</span>
                 <span style={labeled}>{selectedInterests.length} tagged</span>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
@@ -403,7 +403,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                     onClick={() => setShowCustomInput(true)}
                     className="text-xs px-2.5 py-1 rounded-xs border border-dashed border-emerald-600 bg-white/70"
                   >
-                    + custom note
+                    + custom
                   </button>
                 ) : (
                   <div className="flex items-center gap-1">
@@ -469,7 +469,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               onClick={triggerProximitySpark}
               className="w-full py-2 rounded-xs text-xs font-mono font-medium transition active:scale-[0.99] border border-stone-400 bg-stone-700 text-white shadow-xs"
             >
-              ⚡️ Fire Proximity Spark (Flow C demo)
+              Proximity Demo
             </button>
 
             <button
@@ -492,9 +492,8 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
       <div className="w-full max-w-md min-h-screen flex flex-col justify-between border-x border-[#d8cdb4] shadow-2xl relative" style={{ background: DESK_BG }}>
 
         {/* TOP BAR */}
-        <header className="sticky top-0 z-40 backdrop-blur-md px-5 py-3.5 flex items-center justify-between border-b border-[#e9dcbd] bg-[#fbf8f1]/90">
+        <header className="sticky top-0 z-40 backdrop-blur-md px-5 py-3.5 flex items-center justify-between bg-[#fbf8f1]/90">
           <Logo size={28} cutoutColor={DESK_BG} />
-          <div className="text-xs font-mono uppercase tracking-widest font-bold opacity-40">stickie desk</div>
           <button
             onClick={() => setView('settings')}
             className="w-7 h-7 flex flex-col justify-center items-end gap-1 px-0.5 cursor-pointer opacity-70 hover:opacity-100"
@@ -528,12 +527,8 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
             <div className="flex items-center justify-between">
               <h2 className="font-serif text-xl font-bold flex items-center gap-1.5" style={{ color: INK }}>
-                {fullName}
-                <span className="w-2 h-2 rounded-full bg-amber-500 shadow-xs" title="verified stickie" />
+                {fullName} <h4 className="flex items-center gap-1 text-[11px] font-mono font-medium text-amber-900">({pronouns})</h4>
               </h2>
-              <span className="text-[10px] font-mono uppercase bg-amber-200/60 px-2 py-0.5 rounded-xs border border-amber-300">
-                {cadence} Sync
-              </span>
             </div>
 
             {/* Spontaneous Status Buttons */}
@@ -574,7 +569,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
           {/* TAB TAPE SELECTOR */}
           <div className="flex gap-2 mt-6 mb-4 px-1">
             {[
-              { id: 'friends', label: 'Crew Notes', color: POSTIT_BLUE },
+              { id: 'friends', label: 'Friends', color: POSTIT_BLUE },
               { id: 'hangouts', label: 'Past Moments', color: POSTIT_PINK }
             ].map((tab) => (
               <button
@@ -597,7 +592,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
           {activeTab === 'friends' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between px-1">
-                <span style={labeled}>Sticky Roll Call</span>
+                <span style={labeled}>Sticky Friends</span>
                 <button
                   onClick={() => setShowAddFriend(!showAddFriend)}
                   className="text-[11px] font-mono hover:underline font-semibold text-amber-900"
@@ -637,7 +632,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               )}
 
               {/* 2-Column Square Grid for Crew Notes */}
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-3 gap-3 pt-3">
                 {/* MUTUAL STICKIES (Square Blue/Yellow Notes) */}
                 {crew.mutual.map((friend, idx) => (
                   <div
@@ -686,7 +681,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                       onClick={() => nudgeOne('mutual', friend.other_phone)}
                       className="w-full text-[10px] font-mono py-1 rounded-xs border font-bold bg-white text-stone-800 border-stone-300 shadow-xs active:translate-y-0.5 hover:bg-stone-50"
                     >
-                      nudge ⚡️
+                      nudge
                     </button>
                   </div>
                 ))}
@@ -745,7 +740,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                       onClick={() => nudgeOne('solo', contact.key)}
                       className="w-full text-[10px] font-mono py-1 rounded-xs border font-bold bg-white text-amber-900 border-amber-300 shadow-xs active:translate-y-0.5 hover:bg-amber-50"
                     >
-                      nudge ⚡️
+                      nudge
                     </button>
                   </div>
                 ))}
@@ -757,8 +752,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
           {activeTab === 'hangouts' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between px-1">
-                <span style={labeled}>Scrapbook Timeline</span>
-                <span className="text-[10px] font-mono text-stone-500">{PAST_HANGOUTS.length} sticky memories</span>
+                <span className="text-[10px] font-mono text-stone-500">{PAST_HANGOUTS.length} memories stuck</span>
               </div>
 
               {groupByMonth(PAST_HANGOUTS).map((group) => (
@@ -806,7 +800,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                         <div className="min-w-0 flex-1 pr-3">
                           <div className="text-[9px] font-mono font-bold text-amber-900/70">{event.date}</div>
                           <h4 className="font-serif text-sm font-bold mt-0.5 text-stone-900">{event.title}</h4>
-                          <p className="text-[10px] font-mono text-stone-600 mt-0.5">📍 {event.venue}</p>
+                          <p className="text-[10px] font-mono text-stone-600 mt-0.5">{event.venue}</p>
                           <p className="text-[11px] italic mt-1.5 leading-snug text-stone-700 bg-white/50 p-1.5 rounded-xs border border-black/5">
                             "{event.note}"
                           </p>
@@ -828,7 +822,6 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
         <footer className="sticky bottom-0 z-40 backdrop-blur-md border-t border-[#e2d5b6] py-3 flex items-center justify-center bg-[#fbf8f1]/90">
           <span className="text-[11px] font-mono tracking-wider text-stone-400">
-            stickie • plans pinned &amp; sealed
           </span>
         </footer>
 
