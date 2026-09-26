@@ -25,3 +25,10 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "")
 
 WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "")
+
+MY_PHONE_NUMBER = os.environ.get("MY_PHONE_NUMBER", "")
+# Comma-separated real, pre-verified demo numbers, e.g. "+19033063505,+1..."
+# Falls back to just MY_PHONE_NUMBER (a 1-person "group") if not set.
+DEMO_GROUP_NUMBERS = [
+    n.strip() for n in os.environ.get("DEMO_GROUP_NUMBERS", MY_PHONE_NUMBER).split(",") if n.strip()
+]
