@@ -48,13 +48,23 @@ def _get_credentials() -> Credentials:
     return creds
 
 
+def _to_rfc3339(moment: dt.datetime) -> str:
+    """Naive datetimes are assumed UTC; aware ones are converted to UTC.
+    Either way, always produces a single valid 'Z'-suffixed timestamp —
+    blindly appending "Z" to an aware datetime's isoformat() produces an
+    invalid "+00:00Z" string, which is what broke this originally."""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def get_freebusy(calendar_id: str, time_min: dt.datetime, time_max: dt.datetime) -> list[dict]:
     """Returns the busy [{"start", "end"}, ...] blocks for one calendar in a window."""
     creds = _get_credentials()
     service = build("calendar", "v3", credentials=creds)
     body = {
-        "timeMin": time_min.isoformat() + "Z",
-        "timeMax": time_max.isoformat() + "Z",
+        "timeMin": _to_rfc3339(time_min),
+        "timeMax": _to_rfc3339(time_max),
         "items": [{"id": calendar_id}],
     }
     result = service.freebusy().query(body=body).execute()
