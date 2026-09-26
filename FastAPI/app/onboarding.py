@@ -45,7 +45,18 @@ def onboard_start(body: StartRequest) -> dict:
         # The real exception (SendBlue's raw error text) stays server-side
         # only -- surfacing it to the browser looks like a broken app to
         # whoever's typing their number in, e.g. a judge trying the demo.
-        raise HTTPException(status_code=400, detail="Could not text that number -- double check it and try again") from exc
+        # By far the most common real cause isn't a typo: SendBlue's free
+        # tier only allows us to text a number that has texted us first,
+        # so a genuinely brand-new number always fails here on the first
+        # try -- say that plainly instead of implying user error.
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Couldn't send a code to that number. If this is a brand-new "
+                "number, text /join to this same number first, then try again -- "
+                "otherwise double check it's typed correctly."
+            ),
+        ) from exc
         
     return {"status": "sent"}
 
