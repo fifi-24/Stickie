@@ -1,9 +1,12 @@
-# Flow A, steps 2-5: turn a detected plan (app/reasoning.py) into a real
-# venue + time proposal, post it to the group, persist it, track RSVPs,
-# and privately follow up with everyone too.
+# Flow A, steps 2-5, corrected order: privately ask everyone's availability
+# FIRST, only confirm a real date/time in the group once everyone's
+# answered, and hand out a one-tap calendar link since we can't write
+# directly to three different people's calendars (only one OAuth token
+# exists tonight).
 
 import datetime as dt
 import json
+from urllib.parse import urlencode
 
 from app.clients.google_calendar import get_freebusy
 from app.clients.places import search_places
@@ -12,23 +15,24 @@ from app.config import DEMO_GROUP_NUMBERS
 from app.conversation import clear as clear_conversation
 from app.db import Plan, get_session
 from app.primitives import propose_options_and_await_reply
-from app.reasoning import interpret
 
 # Demo location: Georgia Tech / downtown Atlanta, since that's where the
 # group actually is tonight. Swap for real per-user locations later.
 DEMO_LAT = 33.7756
 DEMO_LNG = -84.3963
 
-# The plan currently awaiting RSVPs in the group thread, if any. Tonight's
-# single-group simplification: one active plan at a time, same as the
-# conversation buffer in app/conversation.py.
+# Tonight's single-group simplification: one plan collecting answers at a
+# time. _active_plan_id tracks which Plan row; _active_plan_times maps
+# each time label ("Sunday 3:00PM") back to the real datetime it means,
+# so a finalized plan can be turned into a real calendar link.
 _active_plan_id: int | None = None
+_active_plan_times: dict[str, dt.datetime] = {}
+_active_plan_activity: str = ""
 
 
 def _candidate_times(count: int = 2) -> list[tuple[str, dt.datetime]]:
     """A couple of open-looking (label, datetime) slots over the next few
-    days, based on Bhaumi's own calendar (the only one connected tonight —
-    see post_proposal_to_group's private-RSVP fallback for everyone else)."""
+    days, based on Bhaumi's own calendar (the only one connected tonight)."""
     now = dt.datetime.now(dt.timezone.utc)
     busy = get_freebusy("primary", now, now + dt.timedelta(days=5))
     busy_ranges = [
@@ -59,37 +63,46 @@ def propose_plan(activity: str) -> dict:
     return {"venue": venue, "times": [label for label, _ in times], "time_values": [dt_ for _, dt_ in times]}
 
 
+def _gcal_link(activity: str, venue: str, start: dt.datetime) -> str:
+    """A one-tap 'add to your calendar' link — works for anyone with a
+    Google account, no OAuth from us required. This is how we get the
+    event onto three different people's calendars without three tokens."""
+    end = start + dt.timedelta(hours=1)
+    fmt = "%Y%m%dT%H%M%SZ"
+    params = {
+        "action": "TEMPLATE",
+        "text": f"{activity.title()} - {venue}",
+        "dates": f"{start.strftime(fmt)}/{end.strftime(fmt)}",
+        "location": venue,
+        "details": "Planned by Stickie",
+    }
+    return "https://calendar.google.com/calendar/render?" + urlencode(params)
+
+
 def post_proposal_to_group(activity: str) -> dict:
-    """Steps 3-5: build the proposal (step 2), send it to the real group,
-    persist it as a Plan row, remember it as the active plan so replies get
-    tracked as RSVPs (step 4), clear the conversation buffer so it doesn't
-    get re-proposed, and privately DM every member too (step 5) — tonight's
-    calendar is only connected for one person, so *everyone* gets the same
-    private fallback ask rather than trying to detect who lacks access."""
-    global _active_plan_id
+    """Step 3 (corrected order): tell the group we're on it (no specific
+    time yet — nothing's decided), persist a Plan row in 'collecting'
+    status, clear the conversation buffer, then privately ask every
+    member's availability. Nothing gets confirmed in the group until
+    everyone's answered — see record_time_pick()."""
+    global _active_plan_id, _active_plan_times, _active_plan_activity
 
     plan = propose_plan(activity)
-    times_str = " or ".join(plan["times"]) if plan["times"] else "a time this week"
-    message = f"Ok I got you - {plan['venue']} for {activity}? {times_str} both look open, lmk what works!"
-    send_group_message(DEMO_GROUP_NUMBERS, message)
+    send_group_message(
+        DEMO_GROUP_NUMBERS,
+        f"Ok {activity} at {plan['venue']}! Checking what time works for everyone, one sec.",
+    )
 
     with get_session() as session:
-        row = Plan(
-            status="proposed",
-            venue=plan["venue"],
-            time=plan["time_values"][0] if plan["time_values"] else None,
-            rsvps="{}",
-        )
+        row = Plan(status="collecting", venue=plan["venue"], time=None, rsvps="{}")
         session.add(row)
         session.commit()
         _active_plan_id = row.id
+        _active_plan_times = dict(zip(plan["times"], plan["time_values"]))
+        _active_plan_activity = activity
 
     clear_conversation()
 
-    # Private-RSVP fallback: DM each member individually with the same
-    # options, using the already-tested shared primitive. A full natural
-    # sentence (via `message=`) instead of the generic numbered-list
-    # fallback, so it reads like a person, not a bot form.
     times = plan["times"]
     if len(times) >= 2:
         private_text = f"hey! group's talking {activity} - does {times[0]} or {times[1]} work better for you?"
@@ -104,25 +117,50 @@ def post_proposal_to_group(activity: str) -> dict:
     return plan
 
 
-def record_rsvp(sender: str, text: str) -> bool:
-    """Step 4: if a plan is currently awaiting RSVPs, resolve this reply
-    against yes/no and store it. Returns True if this message was consumed
-    as an RSVP (so the webhook knows not to treat it as anything else)."""
-    if _active_plan_id is None or not text:
-        return False
+def record_time_pick(sender: str, resolved_time: str) -> None:
+    """Called from the webhook once resolve_pending_reply() has already
+    matched a reply to one of the active plan's time-option labels.
+    Tallies the pick; once every group member has answered, finalizes the
+    plan (majority vote, ties go to the earlier time) and sends the real
+    confirmation to the group with a calendar link — this is the step
+    that was missing before."""
+    global _active_plan_id, _active_plan_times, _active_plan_activity
 
-    answer = interpret(text, ["yes", "no"])
-    if answer not in ("yes", "no", "declined"):
-        return False
-    answer = "no" if answer == "declined" else answer
+    if _active_plan_id is None or resolved_time not in _active_plan_times:
+        return
 
     with get_session() as session:
         row = session.query(Plan).filter_by(id=_active_plan_id).one_or_none()
-        if row is None:
-            return False
-        rsvps = json.loads(row.rsvps or "{}")
-        rsvps[sender] = answer
-        row.rsvps = json.dumps(rsvps)
+        if row is None or row.status != "collecting":
+            return
+
+        picks = json.loads(row.rsvps or "{}")
+        picks[sender] = resolved_time
+        row.rsvps = json.dumps(picks)
+        session.commit()
+        print(f"Time pick recorded for {sender}: {resolved_time} ({len(picks)}/{len(DEMO_GROUP_NUMBERS)} in)")
+
+        if len(picks) < len(DEMO_GROUP_NUMBERS):
+            return  # still waiting on someone
+
+        counts: dict[str, int] = {}
+        for pick in picks.values():
+            counts[pick] = counts.get(pick, 0) + 1
+        winning_label = max(counts, key=lambda label: counts[label])
+        winning_time = _active_plan_times[winning_label]
+
+        row.status = "confirmed"
+        row.time = winning_time
         session.commit()
 
-    return True
+        link = _gcal_link(_active_plan_activity, row.venue, winning_time)
+        print(f"PLAN CONFIRMED: {_active_plan_activity} at {row.venue}, {winning_label} (votes: {counts})")
+        send_group_message(
+            DEMO_GROUP_NUMBERS,
+            f"It's settled! {_active_plan_activity} at {row.venue}, {winning_label}. "
+            f"Add it to your calendar: {link}",
+        )
+
+    _active_plan_id = None
+    _active_plan_times = {}
+    _active_plan_activity = ""

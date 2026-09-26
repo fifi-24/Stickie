@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.conversation import record_message, recent_messages
-from app.planning import post_proposal_to_group, record_rsvp
+from app.planning import post_proposal_to_group, record_time_pick
 from app.primitives import resolve_pending_reply
 from app.reasoning import detect_plan_intent
 
@@ -48,18 +48,13 @@ async def sendblue_webhook(request: Request):
 
     print(f"Message from {sender}: \"{content}\"")
 
-    # Both of these key off the sender's phone number independently, so we
-    # run both rather than treat them as either/or: resolve_pending_reply
-    # is for the private-RSVP fallback's time-pick question, record_rsvp is
-    # for a plain yes/no in the group thread. A "yes" typed in the group
-    # will show up as an "unrecognized reply" against the private time
-    # question (harmless noise) AND get correctly recorded as an RSVP.
+    # If this reply matches one of the active plan's private time-pick
+    # options, tally it — record_time_pick() no-ops harmlessly if there's
+    # no active plan or this isn't a real match (e.g. an unrelated message).
     resolution = resolve_pending_reply(sender, content)
     if resolution is not None:
         print(f"Resolved pending reply for {sender} -> {resolution}")
-
-    if record_rsvp(sender, content or ""):
-        print(f"RSVP recorded for {sender}")
+        record_time_pick(sender, resolution)
 
     # Flow A: feed every group message into the recent-message window,
     # check whether a plan is forming (step 1), and if so, build + send
