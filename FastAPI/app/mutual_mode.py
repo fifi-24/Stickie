@@ -1,6 +1,7 @@
 # Flow B, mutual mode ("crossover nudge"): when two people who are BOTH
 # real Stickie users haven't hung out in a while, privately nudge both of
-# them to reconnect. Different from Contact/solo mode (app/db.py's
+# them to reconnect -- with a real suggested venue+time already attached,
+# not just "want to catch up?" Different from Contact/solo mode (app/db.py's
 # Contact table, one-sided -- a power user's own rolodex of people who
 # aren't on Stickie themselves); this is pairwise, between two mutual
 # accounts, driven entirely by real date math against LastHangout.
@@ -8,9 +9,10 @@
 import datetime as dt
 from itertools import combinations
 
+from app.availability import suggest_venue_and_time
 from app.clients.sendblue import send_message
 from app.config import DEMO_GROUP_NUMBERS
-from app.db import LastHangout, get_session
+from app.db import Interest, LastHangout, User, get_session
 from app.reasoning import generate_nudge_message
 
 # Placeholder cadence for tonight -- every real user should eventually set
@@ -42,11 +44,31 @@ def record_hangout(phones: list[str], on: dt.date | None = None) -> None:
         session.commit()
 
 
+def _user_info(session, phone: str) -> tuple[str, set[str]]:
+    user = session.query(User).filter_by(phone=phone).one_or_none()
+    if user is None:
+        return "", set()
+    tags = {i.tag for i in session.query(Interest).filter_by(user_id=user.id).all()}
+    return user.name or "", tags
+
+
+def _shared_activity(tags_a: set[str], tags_b: set[str]) -> str:
+    shared = tags_a & tags_b
+    if shared:
+        return next(iter(shared))
+    # No overlap on record -- fall back to either person's own interest,
+    # then to a safe generic default. Never leave this empty: it's the
+    # search term handed to Places.
+    return next(iter(tags_a or tags_b), "coffee")
+
+
 def run_mutual_mode_check(force: bool = False) -> list[str]:
     """The real check: for every mutual pair in the demo group, nudge them
     if it's been NUDGE_THRESHOLD or longer since LastHangout and they
-    haven't already been nudged for this same gap. Returns the group_keys
-    that got nudged.
+    haven't already been nudged for this same gap. Each nudge carries a
+    real suggested venue + time (checked against just that pair's own
+    calendars), not a bare "want to catch up?" Returns the group_keys that
+    got nudged.
 
     `force=True` is a demo-only override: skips the real threshold/date
     check entirely and nudges every pair regardless, so this can be
@@ -69,9 +91,16 @@ def run_mutual_mode_check(force: bool = False) -> list[str]:
                 if row.last_nudged_date == today:
                     continue  # already nudged for this exact gap
 
-            text = generate_nudge_message(days_since)
-            send_message(a, text)
-            send_message(b, text)
+            name_a, tags_a = _user_info(session, a)
+            name_b, tags_b = _user_info(session, b)
+            activity = _shared_activity(tags_a, tags_b)
+
+            plan = suggest_venue_and_time([a, b], activity, count=1)
+            venue = plan["venue"]
+            time_label = plan["times"][0] if plan["times"] else None
+
+            send_message(a, generate_nudge_message(name_b, days_since, venue, time_label))
+            send_message(b, generate_nudge_message(name_a, days_since, venue, time_label))
             nudged.append(key)
 
             if row is None:

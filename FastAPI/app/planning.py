@@ -8,11 +8,9 @@ import datetime as dt
 import json
 import threading
 from urllib.parse import urlencode
-from zoneinfo import ZoneInfo
 
-from app.clients.google_calendar import get_freebusy
-from app.clients.google_oauth_web import create_event_for_user, get_freebusy_for_user
-from app.clients.places import search_places
+from app.availability import suggest_venue_and_time
+from app.clients.google_oauth_web import create_event_for_user
 from app.clients.sendblue import send_group_message
 from app.config import DEMO_GROUP_NUMBERS
 from app.conversation import clear as clear_conversation
@@ -32,12 +30,6 @@ _rsvp_lock = threading.Lock()
 # already-recorded pick (or land as a first pick at all).
 ALTERATION_WINDOW = dt.timedelta(hours=24)
 
-# Demo location: Georgia Tech / downtown Atlanta, since that's where the
-# group actually is tonight. Swap for real per-user locations later.
-DEMO_LAT = 33.7756
-DEMO_LNG = -84.3963
-DEMO_TZ = ZoneInfo("America/New_York")
-
 # Tonight's single-group simplification: one plan collecting answers at a
 # time. _active_plan_id tracks which Plan row; _active_plan_times maps
 # each time label ("Sunday 3:00PM") back to the real datetime it means,
@@ -47,70 +39,10 @@ _active_plan_times: dict[str, dt.datetime] = {}
 _active_plan_activity: str = ""
 
 
-def _all_busy_ranges(time_min: dt.datetime, time_max: dt.datetime) -> list[tuple[dt.datetime, dt.datetime]]:
-    """Union of busy blocks across every participant who has their own
-    calendar connected, plus Bhaumi's own global calendar as a fallback --
-    a slot only counts as open if it's free for everyone, not just
-    whoever happens to be the one this backend runs as."""
-    def _parse(blocks: list[dict]) -> list[tuple[dt.datetime, dt.datetime]]:
-        return [
-            (dt.datetime.fromisoformat(b["start"].replace("Z", "+00:00")),
-             dt.datetime.fromisoformat(b["end"].replace("Z", "+00:00")))
-            for b in blocks
-        ]
-
-    ranges = _parse(get_freebusy("primary", time_min, time_max))
-
-    with get_session() as session:
-        users = session.query(User).filter(User.phone.in_(DEMO_GROUP_NUMBERS)).all()
-        for user in users:
-            if not user.google_token:
-                continue
-            try:
-                ranges.extend(_parse(get_freebusy_for_user(user.google_token, time_min, time_max)))
-            except Exception as exc:
-                print(f"Couldn't read {user.phone}'s calendar, skipping their availability: {exc}")
-
-    return ranges
-
-
-def _candidate_times(count: int = 2) -> list[tuple[str, dt.datetime]]:
-    """A couple of open-looking (label, datetime) slots over the next few
-    days, checked against every connected participant's own real
-    calendar (see _all_busy_ranges) -- not just Bhaumi's.
-
-    Bug that was here before: "3pm"/"6pm" were computed against a UTC-based
-    day-start, so they were actually 3pm/6pm UTC — 11am/2pm Eastern, not
-    3pm/6pm Eastern. Now built in DEMO_TZ (the demo's real local zone) and
-    only converted to UTC at the boundary (busy-block comparison, and the
-    datetime this function hands back for storage/calendar links) — a
-    proper UTC instant converts correctly to whatever zone a recipient's
-    own device/calendar is set to, which is what "device timing" means."""
-    now_local = dt.datetime.now(DEMO_TZ)
-    now_utc = now_local.astimezone(dt.timezone.utc)
-    busy_ranges = _all_busy_ranges(now_utc, now_utc + dt.timedelta(days=5))
-
-    candidates: list[tuple[str, dt.datetime]] = []
-    today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    for day_offset in range(1, 6):
-        for hour in (15, 18):  # 3pm, 6pm, Eastern
-            slot_start_local = today_local + dt.timedelta(days=day_offset, hours=hour)
-            slot_start_utc = slot_start_local.astimezone(dt.timezone.utc)
-            slot_end_utc = slot_start_utc + dt.timedelta(hours=1)
-            overlaps = any(b_start < slot_end_utc and slot_start_utc < b_end for b_start, b_end in busy_ranges)
-            if not overlaps:
-                candidates.append((slot_start_local.strftime("%A %-I:%M%p"), slot_start_utc))
-            if len(candidates) >= count:
-                return candidates
-    return candidates
-
-
 def propose_plan(activity: str) -> dict:
-    """Step 2: find a real venue + real candidate times for a detected activity."""
-    places = search_places(activity, DEMO_LAT, DEMO_LNG)
-    venue = places[0]["name"] if places else activity.title()
-    times = _candidate_times()
-    return {"venue": venue, "times": [label for label, _ in times], "time_values": [dt_ for _, dt_ in times]}
+    """Step 2: find a real venue + real candidate times for a detected
+    activity, checked against the whole group's calendars."""
+    return suggest_venue_and_time(DEMO_GROUP_NUMBERS, activity)
 
 
 def _gcal_link(activity: str, venue: str, start: dt.datetime) -> str:

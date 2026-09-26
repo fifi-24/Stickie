@@ -111,7 +111,15 @@ def interpret(reply_text: str, options: list[str]) -> str:
 # with a real Muse Spark call, asking it for a short, natural nudge that
 # can reference their shared interests/last activity -- the plain
 # template below has no way to do that.
-def generate_nudge_message(days_since: int | None) -> str:
+def generate_nudge_message(
+    other_name: str | None, days_since: int | None, venue: str | None, time_label: str | None
+) -> str:
+    who = other_name or "your friend"
     if days_since is None:
-        return "hey! you two haven't grabbed anything through Stickie yet -- want to find a time?"
-    return f"hey! it's been {days_since} days since you two hung out -- want to find a time to catch up?"
+        opener = f"hey! you and {who} haven't hung out through Stickie yet."
+    else:
+        opener = f"hey, it's been {days_since} days since you and {who} hung out."
+
+    if venue and time_label:
+        return f"{opener} want to grab {venue} on {time_label}? let me know if that works"
+    return f"{opener} want to find a time to catch up?"
