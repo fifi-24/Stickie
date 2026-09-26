@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from app.clients.sendblue import send_message
 from app.commands import try_handle_command
 from app.conversation import record_message, recent_messages
+from app.crew_digest import try_resolve_digest_approval
 from app.mutual_mode import run_mutual_mode_check
 from app.onboarding import router as onboarding_router
 from app.planning import post_proposal_to_group, record_time_pick
@@ -72,6 +73,14 @@ async def sendblue_webhook(request: Request):
     if try_handle_command(sender, content):
         print(f"COMMAND HANDLED for {sender}")
         return {"status": "command_handled", "from": sender}
+
+    # If this sender has a pending /nudge digest awaiting their approval,
+    # a reply like "1", "all", or "no" belongs to that decision, not to
+    # anything else -- check it before Flow A's own pending-reply logic
+    # so the two can never be mixed up.
+    if try_resolve_digest_approval(sender, content):
+        print(f"DIGEST APPROVAL HANDLED for {sender}")
+        return {"status": "digest_approval_handled", "from": sender}
 
     # If this reply matches one of the active plan's private time-pick
     # options, tally it — record_time_pick() no-ops harmlessly if there's

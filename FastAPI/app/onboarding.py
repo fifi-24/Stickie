@@ -75,7 +75,29 @@ def user_status(phone: str) -> dict:
             "name": user.name,
             "interests": interests,
             "has_calendar": bool(user.google_token),
+            "nudge_threshold_days": user.nudge_threshold_days,
         }
+
+
+class SettingsRequest(BaseModel):
+    phone: str
+    nudge_threshold_days: int
+
+
+@router.post("/users/settings")
+def update_settings(body: SettingsRequest) -> dict:
+    """Persists the real, per-user override for how many days without
+    seeing someone before /nudge calls it overdue -- what the dashboard's
+    'Review' dropdown actually controls now, instead of just local state
+    that reset on refresh."""
+    phone = normalize_phone(body.phone)
+    with get_session() as session:
+        user = session.query(User).filter_by(phone=phone).one_or_none()
+        if user is None:
+            raise HTTPException(status_code=404, detail="No user with that phone")
+        user.nudge_threshold_days = body.nudge_threshold_days
+        session.commit()
+        return {"status": "saved"}
 
 
 class CompleteRequest(BaseModel):

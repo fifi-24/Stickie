@@ -86,5 +86,12 @@ export default function App() {
     );
   }
 
-  return <StickieDashboard name={status.name} phone={phone} interests={status.interests} />;
+  return (
+    <StickieDashboard
+      name={status.name}
+      phone={phone}
+      interests={status.interests}
+      nudgeThresholdDays={status.nudge_threshold_days}
+    />
+  );
 }

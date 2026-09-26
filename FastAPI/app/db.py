@@ -28,6 +28,9 @@ class User(Base):
     # writes to .google_token.json for Bhaumi's own calendar) - once this
     # is set, this person's OWN calendar can be used, not just Bhaumi's.
     google_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # How many days without seeing someone before /nudge calls it overdue.
+    # Null = use the app-wide default (see mutual_mode.DEFAULT_NUDGE_THRESHOLD_DAYS).
+    nudge_threshold_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     interests: Mapped[list["Interest"]] = relationship(back_populates="user")
@@ -46,6 +49,9 @@ class Contact(Base):
     cadence_days: Mapped[int] = mapped_column(Integer, default=30)
     last_met: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
+    # Set the day an outreach goes out to this contact, cleared once
+    # last_met updates -- stops the same overdue gap from nudging twice.
+    last_nudged_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     owner: Mapped["User"] = relationship(back_populates="contacts")
 

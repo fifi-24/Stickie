@@ -68,7 +68,10 @@ const PAST_HANGOUTS = [
 // visitor (real phone + real Google Calendar connection) -- there is no
 // separate login step here, and there never should be one, since that
 // would just be a second, fake gate in front of a real one.
-export default function StickieDashboard({ name = '', phone: realPhone = '', interests = [] }) {
+const CADENCE_DAYS = { Weekly: 7, 'Bi-weekly': 14, Monthly: 30 };
+const DAYS_TO_CADENCE = { 7: 'Weekly', 14: 'Bi-weekly', 30: 'Monthly' };
+
+export default function StickieDashboard({ name = '', phone: realPhone = '', interests = [], nudgeThresholdDays = null }) {
   const initials = (name || 'Stickie User')
     .trim()
     .split(/\s+/)
@@ -84,7 +87,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
   const [fullName, setFullName] = useState(name || 'Stickie User');
   const [pronouns, setPronouns] = useState('they/them');
   const [phone, setPhone] = useState(realPhone || '');
-  const [cadence, setCadence] = useState('Weekly');
+  const [cadence, setCadence] = useState(DAYS_TO_CADENCE[nudgeThresholdDays] || 'Monthly');
   const [presence, setPresence] = useState('Active');
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -157,6 +160,19 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
       }
     } catch (err) {
       setStatusBanner('Trigger failed: ' + err.message);
+    }
+  };
+
+  const updateCadence = async (value) => {
+    setCadence(value);
+    try {
+      await fetch(`${API_BASE}/users/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, nudge_threshold_days: CADENCE_DAYS[value] }),
+      });
+    } catch {
+      // best-effort -- next load will just show the last saved value
     }
   };
 
@@ -550,16 +566,16 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                   </div>
                   <div>
                     <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                      Review
+                      Nudge me if overdue by
                     </label>
                     <select
                       value={cadence}
-                      onChange={(e) => setCadence(e.target.value)}
+                      onChange={(e) => updateCadence(e.target.value)}
                       className="w-full px-1.5 py-1 text-xs bg-white border border-blue-200 rounded outline-none"
                     >
-                      <option value="Weekly">Weekly</option>
-                      <option value="Bi-weekly">Bi-weekly</option>
-                      <option value="Monthly">Monthly</option>
+                      <option value="Weekly">A week</option>
+                      <option value="Bi-weekly">Two weeks</option>
+                      <option value="Monthly">A month</option>
                     </select>
                   </div>
                 </div>
@@ -597,7 +613,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                     <div className="bg-white border border-blue-200 rounded px-2.5 py-1.5">
                       <div className="text-xs font-mono font-bold text-blue-800">/nudge</div>
                       <div className="text-[10px] text-slate-500">
-                        checks if you and a friend are overdue for a hangout and nudges you both
+                        texts you who's overdue in your crew with a suggested plan for each — reply with a number to approve before your friend sees anything
                       </div>
                     </div>
                   </div>

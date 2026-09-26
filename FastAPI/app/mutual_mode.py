@@ -15,11 +15,12 @@ from app.config import DEMO_GROUP_NUMBERS
 from app.db import Interest, LastHangout, User, get_session
 from app.reasoning import generate_nudge_message
 
-# Placeholder cadence for tonight -- every real user should eventually set
-# their own review cadence (the "Weekly/Bi-weekly/Monthly" field already
-# in the dashboard's settings UI isn't persisted to a real column yet;
-# this is the same constant for every pair until that's wired up).
-NUDGE_THRESHOLD = dt.timedelta(days=14)
+# Fallback for anyone who hasn't set their own threshold yet (see
+# User.nudge_threshold_days, and app/crew_digest.py which is what
+# actually applies a real per-user override -- this module's own
+# run_mutual_mode_check() below is a lower-level blind-broadcast tool
+# kept around for quick testing, not the real user-facing /nudge path).
+DEFAULT_NUDGE_THRESHOLD_DAYS = 30
 
 
 def _group_key(phone_a: str, phone_b: str) -> str:
@@ -63,9 +64,14 @@ def _shared_activity(tags_a: set[str], tags_b: set[str]) -> str:
 
 
 def run_mutual_mode_check(force: bool = False) -> list[str]:
-    """The real check: for every mutual pair in the demo group, nudge them
-    if it's been NUDGE_THRESHOLD or longer since LastHangout and they
-    haven't already been nudged for this same gap. Each nudge carries a
+    """A lower-level blind-broadcast check (kept for quick manual testing
+    via /api/simulate-mutual-check): for every mutual pair in the demo
+    group, nudge BOTH sides immediately if it's been
+    DEFAULT_NUDGE_THRESHOLD_DAYS or longer since LastHangout and they
+    haven't already been nudged for this same gap. The real user-facing
+    /nudge command instead goes through app/crew_digest.py, which is
+    per-user-threshold-aware and asks for approval before anything goes
+    out to the other side. Each nudge carries a
     real suggested venue + time (checked against just that pair's own
     calendars), not a bare "want to catch up?" Returns the group_keys that
     got nudged.
@@ -86,7 +92,7 @@ def run_mutual_mode_check(force: bool = False) -> list[str]:
             if not force:
                 if row is None:
                     continue  # never hung out yet -- nothing to measure drift against
-                if days_since < NUDGE_THRESHOLD.days:
+                if days_since < DEFAULT_NUDGE_THRESHOLD_DAYS:
                     continue
                 if row.last_nudged_date == today:
                     continue  # already nudged for this exact gap
@@ -106,7 +112,7 @@ def run_mutual_mode_check(force: bool = False) -> list[str]:
             if row is None:
                 session.add(LastHangout(
                     group_key=key,
-                    last_hangout_date=today - NUDGE_THRESHOLD,
+                    last_hangout_date=today - dt.timedelta(days=DEFAULT_NUDGE_THRESHOLD_DAYS),
                     last_nudged_date=today,
                 ))
             else:
