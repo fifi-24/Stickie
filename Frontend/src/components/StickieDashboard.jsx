@@ -79,7 +79,7 @@ function Logo({ size = 40, onClick }) {
         transform: "rotate(-0.8deg)",
       }}
     >
-      <img src="../stickieLogo.png"></img>
+      <img src="/stickieLogo.png" width={size} height={size} style={{ objectFit: "contain" }} />
     </div>
   );
 }
@@ -201,18 +201,17 @@ export default function StickieDashboard({
     fetchCrew();
   };
 
+  // Only ever called for solo contacts (contact.key === Contact.id) --
+  // mutual crew cards have no unpin button, since a mutual friend is a
+  // real Stickie user, not a row this account owns; see the backend's
+  // delete_contact docstring in crew_routes.py for why.
   const handleRemoveFriend = async (contactKey) => {
-    if (!window.confirm("Unpin this friend from your Stickie board?")) return;
+    if (!window.confirm("Remove this contact from your Stickie board?")) return;
 
     // Optimistically update the UI immediately
     setCrew((prev) => ({
       ...prev,
-      mutual: prev.mutual.filter(
-        (f) => f.other_phone !== contactKey && f.key !== contactKey
-      ),
-      solo: prev.solo.filter(
-        (c) => c.key !== contactKey && c.id !== contactKey
-      ),
+      solo: prev.solo.filter((c) => c.key !== contactKey),
     }));
 
     try {
@@ -229,8 +228,9 @@ export default function StickieDashboard({
         console.error("Backend failed to delete, status:", res.status);
         fetchCrew(); // Roll back if backend rejected
       } else {
-        setStatusBanner("Friend unpinned");
+        setStatusBanner("Contact removed");
         setTimeout(() => setStatusBanner(""), 2000);
+        fetchCrew(); // Reconcile with real server state, same as every other mutation here
       }
     } catch (err) {
       console.error("Failed to delete contact:", err);
@@ -365,7 +365,6 @@ export default function StickieDashboard({
             <div className="flex items-center gap-3">
               <Logo
                 size={40}
-                cutoutColor={DESK_BG}
                 onClick={() => setView("dashboard")}
               />
               <h1
@@ -672,7 +671,7 @@ export default function StickieDashboard({
       >
         {/* TOP BAR */}
         <header className="sticky top-0 z-40 backdrop-blur-md px-5 py-3.5 flex items-center justify-between bg-[#fbf8f1]/90">
-          <Logo size={40} cutoutColor={DESK_BG} />
+          <Logo size={40} />
           <button
             onClick={() => setView("settings")}
             className="w-7 h-7 flex flex-col justify-center items-end gap-1 px-0.5 cursor-pointer opacity-70 hover:opacity-100"
@@ -867,7 +866,10 @@ export default function StickieDashboard({
                     {/* Adhesive tape bar */}
                     <div className="h-1.5 absolute top-0 left-0 right-0 rounded-t-xs bg-black/5" />
 
-                    {/* Top Row: Avatar & Status & Delete */}
+                    {/* Top Row: Status (no unpin here -- a mutual crew member
+                        is a real Stickie user, not a row we own; there's no
+                        safe single-user "delete" for them yet, so this card
+                        deliberately doesn't get the × solo contacts have) */}
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-1">
                         {friend.overdue && (
@@ -875,13 +877,6 @@ export default function StickieDashboard({
                             overdue
                           </span>
                         )}
-                        <button
-                          onClick={() => handleRemoveFriend(friend.other_phone)}
-                          title="Unpin friend"
-                          className="text-stone-400 hover:text-red-500 font-bold text-xs leading-none p-0.5 ml-1 transition"
-                        >
-                          ×
-                        </button>
                       </div>
                     </div>
 
