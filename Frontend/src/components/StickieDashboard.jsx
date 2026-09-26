@@ -682,6 +682,27 @@ export default function StickieDashboard() {
                     ))}
                   </div>
                 </div>
+
+                {/* Manual text commands anyone can send to the Sendblue line */}
+                <div className="pt-2 border-t border-blue-100">
+                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
+                    Text Commands
+                  </label>
+                  <div className="space-y-2">
+                    <div className="bg-white border border-blue-200 rounded px-2.5 py-1.5">
+                      <div className="text-xs font-mono font-bold text-blue-800">/website</div>
+                      <div className="text-[10px] text-slate-500">
+                        texts you back a link straight into your dashboard, already signed in
+                      </div>
+                    </div>
+                    <div className="bg-white border border-blue-200 rounded px-2.5 py-1.5">
+                      <div className="text-xs font-mono font-bold text-blue-800">/plan &lt;activity&gt;</div>
+                      <div className="text-[10px] text-slate-500">
+                        e.g. "/plan pickleball" — skips the wait-and-detect and starts a real group plan right now
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 

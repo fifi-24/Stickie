@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.clients.sendblue import send_message
+from app.commands import try_handle_command
 from app.conversation import record_message, recent_messages
 from app.onboarding import router as onboarding_router
 from app.planning import post_proposal_to_group, record_time_pick
@@ -64,6 +65,12 @@ async def sendblue_webhook(request: Request):
         return {"status": "acknowledged", "type": "outbound_receipt"}
 
     print(f"Message from {sender}: \"{content}\"")
+
+    # Manual slash-commands (e.g. /website, /plan pickleball) always take
+    # priority over passive detection -- if this was one, we're done.
+    if try_handle_command(sender, content):
+        print(f"COMMAND HANDLED for {sender}")
+        return {"status": "command_handled", "from": sender}
 
     # If this reply matches one of the active plan's private time-pick
     # options, tally it — record_time_pick() no-ops harmlessly if there's
