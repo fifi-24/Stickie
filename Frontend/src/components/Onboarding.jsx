@@ -60,12 +60,15 @@ export default function Onboarding({ phone, status, onComplete }) {
     window.location.href = `${API_BASE}/oauth/google/start?phone=${encodeURIComponent(phone)}`;
   };
 
-  const card = "w-full max-w-sm bg-[#fafcfe] border border-blue-200/80 rounded-2xl p-8 shadow-[4px_6px_0px_0px_rgba(186,211,238,0.7)]";
+  const card = "w-full max-w-sm bg-[#fafcfe] border border-blue-200/80 rounded-2xl p-8 shadow-[4px_6px_0px_0px_rgba(186,211,238,0.7)] relative rotate-[-0.5deg]";
   const wrap = "min-h-screen bg-[#edf3fa] flex flex-col justify-center items-center p-6 font-sans";
+  const peekingTab = (
+    <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 bg-blue-100/80 border border-blue-200/60 rounded-xs backdrop-blur-xs opacity-90 shadow-xs" />
+  );
   const logo = (
-    <div className="flex flex-col items-center mb-6">
-      <div className="w-12 h-12 rounded-xl bg-blue-100/70 border border-blue-200 flex items-center justify-center font-mono font-bold text-blue-900 mb-3">[S]</div>
-      <h1 className="text-xl font-bold text-slate-900">Stickie</h1>
+    <div className="flex flex-col items-center mb-6 pt-2">
+      <div className="w-12 h-12 rounded-xl bg-blue-100/70 border border-blue-200 flex items-center justify-center font-mono font-bold text-blue-900 mb-3 shadow-inner">[S]</div>
+      <h1 className="text-xl font-bold tracking-tight text-slate-900">Stickie</h1>
       <p className="text-xs text-blue-900/60 mt-0.5">plans that stick.</p>
     </div>
   );
@@ -75,6 +78,7 @@ export default function Onboarding({ phone, status, onComplete }) {
     return (
       <div className={wrap}>
         <div className={card}>
+          {peekingTab}
           {logo}
           {sent ? (
             <p className="text-xs text-center text-slate-600">
@@ -109,7 +113,9 @@ export default function Onboarding({ phone, status, onComplete }) {
     return (
       <div className={wrap}>
         <div className={card}>
-          <h2 className="text-sm font-bold text-slate-900 mb-4">Set up your profile</h2>
+          {peekingTab}
+          {logo}
+          <h2 className="text-sm font-bold text-slate-900 mb-4 text-center">Set up your profile</h2>
           <form onSubmit={saveProfile} className="space-y-3.5">
             <div>
               <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500 mb-1">name</label>
@@ -154,6 +160,8 @@ export default function Onboarding({ phone, status, onComplete }) {
   return (
     <div className={wrap}>
       <div className={`${card} text-center`}>
+        {peekingTab}
+        {logo}
         <h2 className="text-sm font-bold text-slate-900 mb-2">One last thing</h2>
         <p className="text-xs text-slate-600 mb-5">Connect your Google Calendar so Stickie can find real times that work for you.</p>
         <button onClick={connectCalendar} className="w-full py-2.5 rounded-lg text-xs font-semibold bg-blue-800 hover:bg-blue-900 text-white mb-3">

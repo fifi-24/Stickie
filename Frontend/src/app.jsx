@@ -52,7 +52,7 @@ export default function App() {
 
   if (checkingToken || status === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-slate-400 font-mono text-xs">
+      <div className="min-h-screen bg-[#edf3fa] flex items-center justify-center text-slate-400 font-mono text-xs">
         loading...
       </div>
     );
@@ -70,9 +70,5 @@ export default function App() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <StickieDashboard />
-    </div>
-  );
+  return <StickieDashboard />;
 }
