@@ -155,34 +155,65 @@ def _interpret_heuristic(reply_text: str, options: list[str]) -> str:
     return f"unrecognized reply: {reply_text!r}"
 
 
+NEEDS_CLARIFICATION_PREFIX = "needs_clarification: "
+
+
 def interpret(reply_text: str, options: list[str]) -> str:
     """Resolves a free-text reply against a fixed set of options -- e.g.
     "eh thursday's rough, can we push to next week instead" against
     ["Monday 3:00PM", "Thursday 6:00PM"], which the old keyword-only
     heuristic could never parse (no exact substring, no ordinal, no
-    recognizable day+time in the reply itself)."""
+    recognizable day+time in the reply itself).
+
+    Three-way classification, not just matched/unmatched: a reply that IS
+    trying to answer this question but is too vague to resolve (e.g. bare
+    "another time works better" with no hint which) returns a
+    NEEDS_CLARIFICATION_PREFIX-tagged string so the webhook can text back
+    a follow-up instead of silently stalling the plan forever -- which is
+    exactly what used to happen. A reply that's unrelated to this question
+    entirely (a side comment, declining outright) still returns the plain
+    "unrecognized reply: ..." string and is silently ignored, same as
+    before -- the plan shouldn't get a clarifying text for every off-topic
+    message in the thread."""
     numbered = "\n".join(f"{i}. {opt}" for i, opt in enumerate(options, start=1))
     prompt = (
-        f'Someone was asked to pick one of these options:\n{numbered}\n\n'
+        f'Someone was privately asked to pick one of these options:\n{numbered}\n\n'
         f'Their reply was: "{reply_text}"\n\n'
-        "Which option did they mean? Reply with ONLY the exact text of that "
-        "option, copied verbatim from the list above -- no extra words, no "
-        "quotes, no punctuation added. If there's only one option and they "
-        'clearly declined (said no/can\'t/etc), reply with exactly: DECLINED. '
-        "If the reply doesn't clearly match any option, reply with exactly: NONE."
+        "Decide exactly one of three things:\n"
+        '1. MATCHED -- their reply clearly picks one specific option, even '
+        'phrased indirectly (e.g. preferring "the later one", or rejecting '
+        'the other option by name so only one is left).\n'
+        '2. AMBIGUOUS -- their reply is clearly trying to answer this '
+        'question (a counter-proposal, a preference, a bare "yeah"/"no") '
+        'but it is not possible to tell which specific option they mean, '
+        'or they are asking for a different time not on the list at all.\n'
+        '3. UNRELATED -- their reply has nothing to do with this question: '
+        'a side comment, a question about something else, small talk, or a '
+        "flat decline of the whole thing (not picking between the options, "
+        "just not interested).\n\n"
+        "Reply with ONLY a JSON object, no other text:\n"
+        '{"status": "MATCHED" or "AMBIGUOUS" or "UNRELATED", '
+        '"option": "exact option text copied verbatim from the list above, '
+        'only if status is MATCHED, else null"}'
     )
     try:
-        raw = ask_muse_spark(prompt, max_output_tokens=1100).strip()
-        for option in options:
-            if raw == option or raw.strip('"\'') == option:
-                return option
-        if raw == "DECLINED" and len(options) == 1:
-            return "declined"
-        if raw == "NONE":
+        raw = ask_muse_spark(prompt, max_output_tokens=1100)
+        parsed = _extract_json(raw)
+        if not parsed:
+            raise ValueError(f"unparseable interpret() response: {raw!r}")
+
+        status = parsed.get("status")
+        if status == "MATCHED":
+            option = parsed.get("option")
+            for opt in options:
+                if option == opt:
+                    return opt
+            raise ValueError(f"MATCHED but option didn't match list: {option!r}")
+        if status == "AMBIGUOUS":
+            return f"{NEEDS_CLARIFICATION_PREFIX}{reply_text!r}"
+        if status == "UNRELATED":
             return f"unrecognized reply: {reply_text!r}"
-        # Model didn't follow the exact-copy instruction -- fall through
-        # to the heuristic rather than trust a near-miss string.
-        raise ValueError(f"unparseable interpret() response: {raw!r}")
+        raise ValueError(f"unexpected status in interpret() response: {parsed!r}")
     except Exception as exc:
         print(f"Muse Spark call failed in interpret, falling back to heuristic: {exc}")
         return _interpret_heuristic(reply_text, options)

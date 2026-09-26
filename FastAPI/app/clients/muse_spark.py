@@ -8,9 +8,41 @@
 # instead of installing an SDK avoids any risk of a version mismatch
 # between an SDK's method surface and this documented contract.
 
+import time
+
 import requests
 
 from app.config import MODEL_API_BASE_URL, MODEL_API_KEY, MUSE_SPARK_MODEL
+
+# Cost/quota guardrail: a bug causing a tight retry loop (or anything else
+# unexpectedly hammering this) shouldn't be able to burn through real
+# credit unnoticed. Cheap circuit breaker -- once either limit is hit,
+# raise immediately with no network call at all, so every caller's
+# existing try/except already falls back to the free keyword heuristic
+# automatically; nothing else has to change to be protected by this.
+_MAX_CALLS_PER_MINUTE = 30
+_MAX_CALLS_PER_PROCESS = 1000
+_recent_call_times: list[float] = []
+_total_calls = 0
+
+
+def _check_rate_limit() -> None:
+    global _total_calls
+    now = time.monotonic()
+    _total_calls += 1
+    if _total_calls > _MAX_CALLS_PER_PROCESS:
+        raise RuntimeError(
+            f"Muse Spark call budget exhausted for this process ({_MAX_CALLS_PER_PROCESS} calls) -- "
+            "restart the backend if this is genuinely expected, not a runaway loop."
+        )
+    while _recent_call_times and now - _recent_call_times[0] > 60:
+        _recent_call_times.pop(0)
+    if len(_recent_call_times) >= _MAX_CALLS_PER_MINUTE:
+        raise RuntimeError(
+            f"Muse Spark rate limit hit ({_MAX_CALLS_PER_MINUTE}/min) -- "
+            "falling back to the heuristic for this call instead of spending more."
+        )
+    _recent_call_times.append(now)
 
 
 def ask_muse_spark(prompt: str, max_output_tokens: int = 700) -> str:
@@ -24,6 +56,7 @@ def ask_muse_spark(prompt: str, max_output_tokens: int = 700) -> str:
     in testing -- real cost/latency for no benefit on the narrow
     classification/extraction tasks this app actually needs. "low" is
     plenty for those."""
+    _check_rate_limit()
     response = requests.post(
         f"{MODEL_API_BASE_URL}/responses",
         headers={

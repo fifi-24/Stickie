@@ -19,8 +19,8 @@ from app.crew_routes import router as crew_router
 from app.mutual_mode import run_mutual_mode_check
 from app.onboarding import router as onboarding_router
 from app.planning import post_proposal_to_group, record_time_pick
-from app.primitives import resolve_pending_reply
-from app.reasoning import detect_plan_intent
+from app.primitives import get_pending_options, resolve_pending_reply
+from app.reasoning import NEEDS_CLARIFICATION_PREFIX, detect_plan_intent
 
 app = FastAPI(title="Stickie Backend")
 
@@ -90,7 +90,17 @@ async def sendblue_webhook(request: Request):
     resolution = resolve_pending_reply(sender, content)
     if resolution is not None:
         print(f"Resolved pending reply for {sender} -> {resolution}")
-        record_time_pick(sender, resolution)
+        if resolution.startswith(NEEDS_CLARIFICATION_PREFIX):
+            # A real attempt to answer, just too ambiguous to resolve on
+            # its own (e.g. "another time works better" with no hint
+            # which) -- ask a real follow-up instead of the plan just
+            # silently stalling forever, which is what used to happen.
+            options = get_pending_options(sender) or []
+            if options:
+                choices = " or ".join(options) if len(options) <= 2 else ", ".join(options)
+                send_message(sender, f"sorry, which did you mean -- {choices}? lmk and i'll lock it in")
+        else:
+            record_time_pick(sender, resolution)
 
     # Flow A: feed every group message into the recent-message window,
     # check whether a plan is forming (step 1), and if so, build + send

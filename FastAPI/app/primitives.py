@@ -46,3 +46,12 @@ def resolve_pending_reply(phone: str, reply_text: str | None) -> str | None:
         return None
     pending.resolved = interpret(reply_text, pending.options)
     return pending.resolved
+
+
+def get_pending_options(phone: str) -> list[str] | None:
+    """The options `phone` is still being asked about, if any -- used to
+    text back a clarifying follow-up when interpret() recognizes a reply
+    as an attempt to answer but too ambiguous to resolve on its own,
+    instead of the plan just silently stalling forever."""
+    pending = _pending.get(phone)
+    return pending.options if pending else None
