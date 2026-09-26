@@ -279,3 +279,38 @@ def generate_nudge_message(
     except Exception as exc:
         print(f"Muse Spark call failed in generate_nudge_message, falling back to heuristic: {exc}")
         return _generate_nudge_message_heuristic(other_name, days_since, venue, time_label)
+
+
+def _suggest_activity_idea_heuristic(interests: list[str]) -> str:
+    if not interests:
+        return "Add some interests in Settings and I'll be able to suggest real ideas for your crew!"
+    return (
+        f"You've got '{interests[0]}' down as an interest but haven't done it as a "
+        "group yet through Stickie -- maybe bring that up next?"
+    )
+
+
+# /ideas: the one other genuinely generative (not classification) call --
+# given what this person's crew is actually into and what they've really
+# done together recently, propose fresh activity ideas instead of a repeat.
+def suggest_activity_idea(interests: list[str], recent_activities: list[str]) -> str:
+    interests_text = ", ".join(interests) if interests else "nothing on file yet"
+    recent_text = ", ".join(recent_activities) if recent_activities else "nothing recent on file"
+    prompt = (
+        f"A friend group's stored interests: {interests_text}.\n"
+        f"Real venues they've actually confirmed hanging out at recently: {recent_text}.\n\n"
+        "Suggest 1-2 SPECIFIC new activity ideas this group hasn't tried, that "
+        "genuinely fit their stated interests -- not a repeat of what they just "
+        "did. Sound like a real friend texting a suggestion: casual and warm, "
+        "under 300 characters total. No emojis, no hashtags, no markdown, no "
+        "em dashes (use a comma or period instead). Reply with ONLY the "
+        "message text, nothing else."
+    )
+    try:
+        raw = ask_muse_spark(prompt, max_output_tokens=1100).strip().strip('"')
+        if not raw or len(raw) > 400:
+            raise ValueError(f"empty or too-long idea suggestion: {raw!r}")
+        return raw
+    except Exception as exc:
+        print(f"Muse Spark call failed in suggest_activity_idea, falling back to heuristic: {exc}")
+        return _suggest_activity_idea_heuristic(interests)
