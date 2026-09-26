@@ -39,23 +39,37 @@ export default function Onboarding({ phone, status, onComplete, onVerified, onSk
     'w-full max-w-sm rounded-3xl p-8 shadow-2xl';
   const cardStyle = { background: CARD_BG };
 
+  const formatE164 = (raw) => {
+    const cleaned = raw.replace(/\D/g, '');
+    if (cleaned.startsWith('1') && cleaned.length === 11) {
+      return `+${cleaned}`;
+    }
+    return `+1${cleaned}`;
+  };
+
   const sendCode = async (e) => {
     e.preventDefault();
     setError('');
     if (!name.trim() || !phoneInput.trim()) return;
     setSending(true);
+
+    const formatted = formatE164(phoneInput);
+
     try {
       const res = await fetch(`${API_BASE}/onboard/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phoneInput }),
+        body: JSON.stringify({ phone: formatted }),
       });
-      if (!res.ok) throw new Error('failed');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || 'failed');
+      }
       setCodeSent(true);
       setDigits(['', '', '', '']);
       setTimeout(() => inputRefs[0].current?.focus(), 50);
-    } catch {
-      setError('Could not send a code. Check the number and try again.');
+    } catch (err) {
+      setError(err.message || 'Could not send a code. Check the number and try again.');
     } finally {
       setSending(false);
     }
@@ -63,14 +77,15 @@ export default function Onboarding({ phone, status, onComplete, onVerified, onSk
 
   const submitCode = async (fullCode) => {
     setError('');
+    const formatted = formatE164(phoneInput);
     try {
       const res = await fetch(`${API_BASE}/onboard/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phoneInput, name, code: fullCode }),
+        body: JSON.stringify({ phone: formatted, name, code: fullCode }),
       });
       if (!res.ok) throw new Error('failed');
-      onVerified(phoneInput);
+      onVerified(formatted);
     } catch {
       setError('Wrong code — try again.');
       setDigits(['', '', '', '']);

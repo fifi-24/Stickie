@@ -4,10 +4,10 @@
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 # .env lives at the repo root (one level above FastAPI/), matching .env.example
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+load_dotenv(find_dotenv())
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./stickie.db")
 

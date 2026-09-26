@@ -96,16 +96,30 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
     [...list].sort((a, b) => (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0));
 
   const fetchCrew = () => {
-    if (!phone) return;
+    if (!phone) {
+      console.warn('⚠️ fetchCrew skipped: phone is empty');
+      return;
+    }
     setCrewLoading(true);
     fetch(`${API_BASE}/crew?phone=${encodeURIComponent(phone)}`)
-      .then((r) => r.json())
-      .then((data) => setCrew({
-        mutual: sortOverdueFirst(data.mutual || []),
-        solo: sortOverdueFirst(data.solo || []),
-        nudge_threshold_days: data.nudge_threshold_days,
-      }))
-      .catch(() => {})
+      .then(async (r) => {
+        if (!r.ok) {
+          const errText = await r.text();
+          throw new Error(`HTTP ${r.status}: ${errText}`);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        console.log('✅ Crew data received:', data);
+        setCrew({
+          mutual: sortOverdueFirst(data.mutual || []),
+          solo: sortOverdueFirst(data.solo || []),
+          nudge_threshold_days: data.nudge_threshold_days,
+        });
+      })
+      .catch((err) => {
+        console.error('❌ fetchCrew failed:', err);
+      })
       .finally(() => setCrewLoading(false));
   };
 

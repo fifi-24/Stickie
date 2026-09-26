@@ -27,21 +27,22 @@ class StartRequest(BaseModel):
 
 @router.post("/onboard/start")
 def onboard_start(body: StartRequest) -> dict:
-    """Texts `phone` a 4-digit verification code. Called from the site's
-    own login screen (name + phone entered together) -- this is the
-    front door every new user goes through. Real numeric-code
-    verification, not a magic link: nothing here depends on the phone's
-    own browser being able to reach our tunnel URL, which a link would."""
     phone = normalize_phone(body.phone)
     code = f"{secrets.randbelow(10000):04d}"
     with get_session() as session:
         session.add(OnboardingToken(token=code, phone=phone))
         session.commit()
 
+    print(f"--> [STICKIE] Generated verification code {code} for {phone}")
+
     try:
         send_message(phone, f"Your Stickie verification code is {code}")
+        print(f"--> [STICKIE] SMS sent successfully via Sendblue to {phone}")
     except Exception as exc:
-        raise HTTPException(status_code=400, detail="Could not text that number") from exc
+        print(f"❌ [STICKIE ERROR] send_message failed: {exc}")
+        print(f"👉 HACKATHON FALLBACK: Enter code '{code}' on the web screen right now!")
+        raise HTTPException(status_code=400, detail=f"Sendblue error: {exc}") from exc
+        
     return {"status": "sent"}
 
 
