@@ -1,12 +1,16 @@
 # Entry point for the backend. Run with: uvicorn app.main:app --reload
-# Owns the /health check and the single SendBlue webhook every flow's
-# messages arrive through (group chat + every 1:1 thread).
+# Owns the /health check, the single SendBlue webhook every flow's
+# messages arrive through (group chat + every 1:1 thread), and two
+# manual demo-trigger endpoints for flows C and B-solo (not wired to any
+# real detection yet — these just prove the send path works on demand).
 
 import json
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
+from app.clients.sendblue import send_message
 from app.conversation import record_message, recent_messages
 from app.planning import post_proposal_to_group, record_time_pick
 from app.primitives import resolve_pending_reply
@@ -68,3 +72,53 @@ async def sendblue_webhook(request: Request):
         print(f"PROPOSAL SENT: {result}")
 
     return {"status": "received", "from": sender, "preview": content}
+
+
+# --- Sophie's manual demo triggers (flows C and B-solo) ---
+# Not wired to any real detection logic yet (Flow C needs the proximity
+# toggle + distance check, Flow B-solo needs the contacts/rolodex + due
+# check) — these just prove the send path fires on a button press.
+
+
+class ProximityRequest(BaseModel):
+    user_a_name: str
+    user_b_name: str
+    target_phone: str
+    location_name: str
+
+
+class ConciergeRequest(BaseModel):
+    power_user_name: str
+    contact_name: str
+    target_phone: str
+    intent: str
+
+
+@app.post("/api/simulate-proximity")
+def simulate_proximity(req: ProximityRequest):
+    """Flow C: Spontaneous Proximity Spark."""
+    text = (
+        f"Stickie Proximity Alert: {req.user_a_name} and {req.user_b_name} are both at "
+        f"{req.location_name} right now! Down for a quick 15-min coffee break?"
+    )
+    try:
+        res = send_message(number=req.target_phone, text=text)
+        return {"status": "success", "response": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/simulate-concierge")
+def simulate_concierge(req: ConciergeRequest):
+    """Flow B: Solo Concierge Mode (Nancy's workflow). Texts the contact
+    directly with 2-3 concrete slots so one reply finishes it."""
+    text = (
+        f"Hi {req.contact_name}, this is {req.power_user_name}'s Stickie! They'd love to "
+        f"{req.intent.lower()}. Based on their calendar, does Tue at 3:00 PM or "
+        f"Wed at 5:00 PM work for you?"
+    )
+    try:
+        res = send_message(number=req.target_phone, text=text)
+        return {"status": "success", "response": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
