@@ -27,25 +27,31 @@ class StartRequest(BaseModel):
 
 @router.post("/onboard/start")
 def onboard_start(body: StartRequest) -> dict:
-    """Texts `phone` a one-time link to the onboarding page. Called from
-    the site's own 'enter your number' screen — this is the front door
-    every new user goes through."""
+    """Texts `phone` a 4-digit verification code. Called from the site's
+    own login screen (name + phone entered together) -- this is the
+    front door every new user goes through. Real numeric-code
+    verification, not a magic link: nothing here depends on the phone's
+    own browser being able to reach our tunnel URL, which a link would."""
     phone = normalize_phone(body.phone)
-    token = secrets.token_urlsafe(24)
+    code = f"{secrets.randbelow(10000):04d}"
     with get_session() as session:
-        session.add(OnboardingToken(token=token, phone=phone))
+        session.add(OnboardingToken(token=code, phone=phone))
         session.commit()
 
-    link = f"{FRONTEND_BASE_URL}/onboard?token={token}"
-    send_message(phone, f"Welcome to Stickie! Tap to set up your account: {link}")
+    try:
+        send_message(phone, f"Your Stickie verification code is {code}")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Could not text that number") from exc
     return {"status": "sent"}
 
 
 @router.get("/onboard/verify")
 def onboard_verify(token: str) -> dict:
-    """The onboarding page calls this once, on load, with the token from
-    the link's query string. Returns the phone number the token was
-    issued for, or 401 if it's missing/used/expired."""
+    """Magic-link verification -- still used by /website and any texted
+    link (see app/commands.py's handle_website_command), which creates
+    its own long random token separately from the numeric-code flow
+    above. Returns the phone the token was issued for, or 401 if it's
+    missing/used/expired."""
     with get_session() as session:
         row = session.query(OnboardingToken).filter_by(token=token).one_or_none()
         if row is None or row.used:
@@ -58,6 +64,47 @@ def onboard_verify(token: str) -> dict:
         row.used = True
         session.commit()
         return {"phone": row.phone}
+
+
+class VerifyCodeRequest(BaseModel):
+    phone: str
+    name: str
+    code: str
+
+
+@router.post("/onboard/verify-code")
+def onboard_verify_code(body: VerifyCodeRequest) -> dict:
+    """The real signup step: checks the 4-digit code texted by
+    /onboard/start, and on success upserts the User row with the name
+    entered on the same screen -- one step instead of the old
+    verify-then-separately-save-name flow, matching a name+phone
+    collected together up front."""
+    phone = normalize_phone(body.phone)
+    with get_session() as session:
+        row = (
+            session.query(OnboardingToken)
+            .filter_by(phone=phone, token=body.code, used=False)
+            .order_by(OnboardingToken.created_at.desc())
+            .first()
+        )
+        if row is None:
+            raise HTTPException(status_code=401, detail="Wrong code")
+        if datetime.now(timezone.utc) - row.created_at.replace(tzinfo=timezone.utc) > timedelta(
+            minutes=TOKEN_VALID_MINUTES
+        ):
+            raise HTTPException(status_code=401, detail="This code has expired")
+
+        row.used = True
+
+        user = session.query(User).filter_by(phone=phone).one_or_none()
+        if user is None:
+            user = User(name=body.name, phone=phone)
+            session.add(user)
+        else:
+            user.name = body.name
+        session.commit()
+
+        return {"phone": phone}
 
 
 @router.get("/users/status")

@@ -1,28 +1,49 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { API_BASE } from '../api';
 
-const DEFAULT_INTERESTS = [
-  "Trivia Nights", "Pickleball", "Coffee Catchups", "Board Games",
-  "Boba Runs", "Late Night Ramen", "Vintage Thrifting", "Study Sessions"
-];
+// Real onboarding: name + phone together -> real 4-digit SMS code ->
+// (optional) real Google Calendar connect. Every step writes to the
+// real backend; nothing here is mocked. Dark page / cream card / gold
+// accent to match the agreed design -- shared by every screen here and
+// by the dashboard's own header badge.
+const PAGE_BG = '#171512';
+const CARD_BG = '#FAF1DC';
+const ACCENT = '#F0C94C';
 
-// Real onboarding, three stages, every step writes to the real backend:
-//   1. no verified phone yet -> ask for it, text a real magic link
-//   2. verified phone, no saved profile -> name + interests -> POST /onboard/complete
-//   3. profile saved, no calendar connected -> real Google OAuth redirect
-export default function Onboarding({ phone, status, onComplete }) {
-  const [phoneInput, setPhoneInput] = useState('');
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
+function Logo({ cutoutColor }) {
+  return (
+    <div
+      className="w-14 h-14 rounded-2xl relative overflow-hidden shadow-md"
+      style={{ background: ACCENT }}
+    >
+      <div
+        className="absolute -top-3 -right-3 w-7 h-7 rotate-45"
+        style={{ background: cutoutColor }}
+      />
+    </div>
+  );
+}
 
+export default function Onboarding({ phone, status, onComplete, onVerified, onSkipCalendar }) {
   const [name, setName] = useState(status?.name || '');
-  const [interests, setInterests] = useState(status?.interests || []);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(Boolean(status?.exists));
+  const [phoneInput, setPhoneInput] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [digits, setDigits] = useState(['', '', '', '']);
+  const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
+  const inputRefs = [useRef(), useRef(), useRef(), useRef()];
 
-  const requestLink = async (e) => {
+  const wrap = 'min-h-screen flex flex-col justify-center items-center p-6 font-sans';
+  const wrapStyle = { background: PAGE_BG };
+  const card =
+    'w-full max-w-sm rounded-3xl p-8 shadow-2xl';
+  const cardStyle = { background: CARD_BG };
+
+  const sendCode = async (e) => {
     e.preventDefault();
     setError('');
+    if (!name.trim() || !phoneInput.trim()) return;
+    setSending(true);
     try {
       const res = await fetch(`${API_BASE}/onboard/start`, {
         method: 'POST',
@@ -30,150 +51,163 @@ export default function Onboarding({ phone, status, onComplete }) {
         body: JSON.stringify({ phone: phoneInput }),
       });
       if (!res.ok) throw new Error('failed');
-      setSent(true);
+      setCodeSent(true);
+      setDigits(['', '', '', '']);
+      setTimeout(() => inputRefs[0].current?.focus(), 50);
     } catch {
-      setError('Could not send the link. Check the number and try again.');
+      setError('Could not send a code. Check the number and try again.');
+    } finally {
+      setSending(false);
     }
   };
 
-  const toggleInterest = (tag) => {
-    setInterests((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
-  };
-
-  const saveProfile = async (e) => {
-    e.preventDefault();
-    setSaving(true);
+  const submitCode = async (fullCode) => {
+    setError('');
     try {
-      await fetch(`${API_BASE}/onboard/complete`, {
+      const res = await fetch(`${API_BASE}/onboard/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, name, interests }),
+        body: JSON.stringify({ phone: phoneInput, name, code: fullCode }),
       });
-      setSaved(true);
-      onComplete();
-    } finally {
-      setSaving(false);
+      if (!res.ok) throw new Error('failed');
+      onVerified(phoneInput);
+    } catch {
+      setError('Wrong code — try again.');
+      setDigits(['', '', '', '']);
+      inputRefs[0].current?.focus();
     }
   };
 
-  const connectCalendar = () => {
-    window.location.href = `${API_BASE}/oauth/google/start?phone=${encodeURIComponent(phone)}`;
+  const handleDigitChange = (i, value) => {
+    const clean = value.replace(/[^0-9]/g, '').slice(-1);
+    const next = [...digits];
+    next[i] = clean;
+    setDigits(next);
+    if (clean && i < 3) inputRefs[i + 1].current?.focus();
+    if (next.every((d) => d !== '')) submitCode(next.join(''));
   };
 
-  const card = "w-full max-w-sm bg-[#fafcfe] border border-blue-200/80 rounded-2xl p-8 shadow-[4px_6px_0px_0px_rgba(186,211,238,0.7)] relative rotate-[-0.5deg]";
-  const wrap = "min-h-screen flex flex-col justify-center items-center p-6 font-sans";
-  const wrapStyle = { background: 'radial-gradient(circle at 50% 0%, #f3f8fd 0%, #e4edf7 60%, #dbe6f2 100%)' };
-  const peekingTab = (
-    <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 bg-blue-100/80 border border-blue-200/60 rounded-xs backdrop-blur-xs opacity-90 shadow-xs" />
-  );
-  const logo = (
-    <div className="flex flex-col items-center mb-6 pt-2">
-      {/* Placeholder logomark, matches the dashboard's -- a real brand
-          mark replaces both once that's decided. */}
-      <div className="w-12 h-12 rounded-xl bg-blue-700 shadow-inner mb-3 relative overflow-hidden">
-        <div className="absolute -top-3 -right-3 w-6 h-6 bg-[#fafcfe] rotate-45" />
-      </div>
-      <h1 className="text-xl font-bold tracking-tight text-slate-900">Stickie</h1>
-      <p className="text-xs text-blue-900/60 mt-0.5">plans that stick.</p>
-    </div>
-  );
+  const handleDigitKeyDown = (i, e) => {
+    if (e.key === 'Backspace' && !digits[i] && i > 0) inputRefs[i - 1].current?.focus();
+  };
 
-  // Stage 1: get + verify a phone number
+  // Stage 1/2: not verified yet -- login form, then code entry.
   if (!phone) {
     return (
       <div className={wrap} style={wrapStyle}>
-        <div className={card}>
-          {peekingTab}
-          {logo}
-          {sent ? (
-            <p className="text-xs text-center text-slate-600">
-              Check your phone! We texted you a link — tap it to finish setting up on this device.
-            </p>
+        <div className={card} style={cardStyle}>
+          <div className="flex flex-col items-center mb-7">
+            <Logo cutoutColor={PAGE_BG} />
+            <h1 className="font-serif-stickie text-3xl font-bold text-[#2b2620] mt-4">Stickie</h1>
+            <p className="text-xs text-[#7a6f5d] mt-1">Glue of your social life!</p>
+          </div>
+
+          {!codeSent ? (
+            <>
+              <h2 className="font-serif-stickie text-xl font-bold text-[#2b2620] mb-4">Log in</h2>
+              <form onSubmit={sendCode} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase tracking-wider text-[#8a7d68] mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 text-sm bg-white/70 border border-[#e6d9b8] rounded-xl outline-none focus:border-[#F0C94C]"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase tracking-wider text-[#8a7d68] mb-1">
+                    Phone Number
+                  </label>
+                  <div className="flex items-center gap-2 bg-white/70 border border-[#e6d9b8] rounded-xl px-3.5 py-2.5 focus-within:border-[#F0C94C]">
+                    <span className="text-sm text-[#8a7d68]">+1</span>
+                    <input
+                      type="tel"
+                      placeholder="(415) 555-0182"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      className="flex-1 text-sm bg-transparent outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+                {error && <p className="text-[11px] text-red-600">{error}</p>}
+                <button
+                  type="submit"
+                  disabled={sending}
+                  className="w-full py-3 mt-2 rounded-xl text-sm font-semibold text-[#2b2620] shadow-sm active:scale-[0.98] transition"
+                  style={{ background: ACCENT }}
+                >
+                  {sending ? 'sending...' : 'Send Verification Code'}
+                </button>
+                <p className="text-[10px] text-[#8a7d68] text-center pt-1">
+                  By continuing, you agree to our Terms of Service and Privacy Policy.
+                </p>
+              </form>
+            </>
           ) : (
-            <form onSubmit={requestLink} className="space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500 mb-1">your phone number</label>
-                <input
-                  type="tel"
-                  placeholder="+15551234567"
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs bg-white border border-blue-200 rounded-lg outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                  required
-                />
+            <>
+              <h2 className="font-serif-stickie text-xl font-bold text-[#2b2620] mb-1">Verification</h2>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-[#8a7d68] mb-4">Enter Code</p>
+              <div className="flex justify-center gap-3 mb-4">
+                {digits.map((d, i) => (
+                  <input
+                    key={i}
+                    ref={inputRefs[i]}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={d}
+                    onChange={(e) => handleDigitChange(i, e.target.value)}
+                    onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                    className="w-12 h-14 text-center text-xl font-bold bg-white/70 border border-[#e6d9b8] rounded-xl outline-none focus:border-[#F0C94C]"
+                  />
+                ))}
               </div>
-              {error && <p className="text-[11px] text-red-600">{error}</p>}
-              <button type="submit" className="w-full py-2.5 mt-2 rounded-lg text-xs font-semibold bg-blue-800 hover:bg-blue-900 text-white">
-                text me a link
-              </button>
-            </form>
+              {error && <p className="text-[11px] text-red-600 text-center mb-2">{error}</p>}
+              <p className="text-xs text-[#8a7d68] text-center">
+                Didn't receive a code?{' '}
+                <button onClick={sendCode} className="font-semibold text-[#2b2620] hover:underline">
+                  Resend
+                </button>
+              </p>
+            </>
           )}
         </div>
       </div>
     );
   }
 
-  // Stage 2: real profile — name + interests
-  if (!saved) {
-    return (
-      <div className={wrap} style={wrapStyle}>
-        <div className={card}>
-          {peekingTab}
-          {logo}
-          <h2 className="text-sm font-bold text-slate-900 mb-4 text-center">Set up your profile</h2>
-          <form onSubmit={saveProfile} className="space-y-3.5">
-            <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500 mb-1">name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full px-3.5 py-2 text-xs bg-white border border-blue-200 rounded-lg outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500 mb-2">what are you into?</label>
-              <div className="flex flex-wrap gap-2">
-                {DEFAULT_INTERESTS.map((tag) => (
-                  <button
-                    type="button"
-                    key={tag}
-                    onClick={() => toggleInterest(tag)}
-                    className={`text-xs px-3 py-1 rounded-md ${
-                      interests.includes(tag)
-                        ? 'bg-blue-100/90 text-blue-950 border border-blue-300/80'
-                        : 'bg-white text-slate-600 border border-dashed border-slate-300'
-                    }`}
-                  >
-                    {interests.includes(tag) ? '✓ ' : '+ '}
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button type="submit" disabled={saving} className="w-full py-2.5 mt-2 rounded-lg text-xs font-semibold bg-blue-800 hover:bg-blue-900 text-white">
-              {saving ? 'saving...' : 'save profile'}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  // Stage 3: verified, no calendar connected yet -- optional interstitial.
+  const connectCalendar = () => {
+    window.location.href = `${API_BASE}/oauth/google/start?phone=${encodeURIComponent(phone)}`;
+  };
 
-  // Stage 3: real Google Calendar connect
   return (
     <div className={wrap} style={wrapStyle}>
-      <div className={`${card} text-center`}>
-        {peekingTab}
-        {logo}
-        <h2 className="text-sm font-bold text-slate-900 mb-2">One last thing</h2>
-        <p className="text-xs text-slate-600 mb-5">Connect your Google Calendar so Stickie can find real times that work for you.</p>
-        <button onClick={connectCalendar} className="w-full py-2.5 rounded-lg text-xs font-semibold bg-blue-800 hover:bg-blue-900 text-white mb-3">
-          connect google calendar
+      <div className={`${card} text-center`} style={cardStyle}>
+        <div className="flex justify-center mb-6">
+          <Logo cutoutColor={CARD_BG} />
+        </div>
+        <h2 className="font-serif-stickie text-xl font-bold text-[#2b2620] mb-2">Sync Your Calendar</h2>
+        <p className="text-xs text-[#7a6f5d] mb-6 leading-relaxed">
+          Stickie needs calendar access to automatically find overlapping free time when your group plans things.
+        </p>
+        <button
+          onClick={connectCalendar}
+          className="w-full py-3 rounded-xl text-sm font-semibold text-[#2b2620] shadow-sm active:scale-[0.98] transition mb-3"
+          style={{ background: ACCENT }}
+        >
+          Connect Google Calendar
         </button>
-        <button onClick={onComplete} className="text-[11px] font-mono text-blue-700 hover:underline">
+        <button onClick={onComplete} className="text-[11px] font-mono text-[#8a7d68] hover:underline mr-3">
           I just connected it — refresh
+        </button>
+        <button onClick={onSkipCalendar} className="text-[11px] font-mono text-[#8a7d68] hover:underline">
+          Skip for now
         </button>
       </div>
     </div>

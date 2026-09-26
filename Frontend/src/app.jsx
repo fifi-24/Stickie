@@ -12,6 +12,12 @@ export default function App() {
   const [phone, setPhone] = useState(() => localStorage.getItem('stickie_phone') || '');
   const [status, setStatus] = useState(null);
   const [checkingToken, setCheckingToken] = useState(true);
+  // Calendar is real but optional -- "skip for now" is a per-device
+  // choice, not a backend field, so a skip doesn't force reconnecting
+  // every session but a real "connect calendar" click still can any time.
+  const [calendarSkipped, setCalendarSkipped] = useState(
+    () => localStorage.getItem('stickie_skip_calendar') === '1'
+  );
 
   // A magic-link visit looks like /?token=... — verify it once, then
   // strip it from the URL so refreshing doesn't try to reuse it. A visit
@@ -74,14 +80,28 @@ export default function App() {
     );
   }
 
-  const fullyOnboarded = status.exists && status.has_calendar;
+  // Calendar is real but optional -- skipping it just means Flow A falls
+  // back to whoever else has connected theirs (the backend already
+  // degrades gracefully per-person in app/availability.py). Only a
+  // saved name is required before the real dashboard; the calendar
+  // screen shows once as an interstitial, not a hard gate.
+  const needsOnboarding = !status.exists;
+  const needsCalendarPrompt = status.exists && !status.has_calendar && !calendarSkipped;
 
-  if (!fullyOnboarded) {
+  if (needsOnboarding || needsCalendarPrompt) {
     return (
       <Onboarding
         phone={phone}
         status={status}
         onComplete={refreshStatus}
+        onVerified={(verifiedPhone) => {
+          localStorage.setItem('stickie_phone', verifiedPhone);
+          setPhone(verifiedPhone);
+        }}
+        onSkipCalendar={() => {
+          localStorage.setItem('stickie_skip_calendar', '1');
+          setCalendarSkipped(true);
+        }}
       />
     );
   }
