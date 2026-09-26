@@ -58,17 +58,27 @@ const PAST_HANGOUTS = [
   }
 ];
 
-export default function StickieDashboard() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authEmail, setAuthEmail] = useState('sophie@stickie.app');
-  const [authPassword, setAuthPassword] = useState('••••••••');
+// This dashboard only renders once App.jsx has already verified the
+// visitor (real phone + real Google Calendar connection) -- there is no
+// separate login step here, and there never should be one, since that
+// would just be a second, fake gate in front of a real one.
+export default function StickieDashboard({ name = '', phone: realPhone = '', interests = [] }) {
+  const initials = (name || 'Stickie User')
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.match(/[A-Za-z]/)?.[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'S';
 
-  const [username, setUsername] = useState('sophiekeller');
-  const [fullName, setFullName] = useState('Sophie Keller');
-  const [pronouns, setPronouns] = useState('she/her');
-  const [phone, setPhone] = useState('+14041234567');
-  const [email, setEmail] = useState('sophie@stickie.app');
-  const [bio, setBio] = useState('making plans stick.\nOxford → UGA.\nalways down for trivia, iced matcha, or court time.');
+  const [username, setUsername] = useState(
+    name ? name.toLowerCase().replace(/\s+/g, '') : 'you'
+  );
+  const [fullName, setFullName] = useState(name || 'Stickie User');
+  const [pronouns, setPronouns] = useState('they/them');
+  const [phone, setPhone] = useState(realPhone || '');
+  const [bio, setBio] = useState('making plans stick.');
   const [cadence, setCadence] = useState('Weekly');
   const [presence, setPresence] = useState('Active');
 
@@ -76,7 +86,9 @@ export default function StickieDashboard() {
   const [activeTab, setActiveTab] = useState('interests');
   const [statusBanner, setStatusBanner] = useState('');
 
-  const [selectedInterests, setSelectedInterests] = useState(['Trivia Nights', 'Coffee Catchups', 'Pickleball']);
+  const [selectedInterests, setSelectedInterests] = useState(
+    interests.length ? interests : ['Trivia Nights', 'Coffee Catchups', 'Pickleball']
+  );
   const [customTagInput, setCustomTagInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
@@ -143,69 +155,6 @@ export default function StickieDashboard() {
     }
   };
 
-  // ==========================================
-  // VIEW 1: AUTH / LOGIN NOTE
-  // ==========================================
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-[#edf3fa] text-slate-800 flex flex-col justify-center items-center p-6 font-sans">
-        <div className="w-full max-w-sm bg-[#fafcfe] border border-blue-200/80 rounded-2xl p-8 shadow-[4px_6px_0px_0px_rgba(186,211,238,0.7)] relative rotate-[-0.5deg]">
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 bg-blue-100/80 border border-blue-200/60 rounded-xs backdrop-blur-xs opacity-90 shadow-xs" />
-
-          <div className="flex flex-col items-center mb-6 pt-2">
-            <div className="w-12 h-12 rounded-xl bg-blue-100/70 border border-blue-200 flex items-center justify-center font-mono font-bold text-blue-900 mb-3 shadow-inner">
-              [S]
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">Stickie</h1>
-            <p className="text-xs text-blue-900/60 mt-0.5">plans that stick.</p>
-          </div>
-
-          <form onSubmit={(e) => { e.preventDefault(); setIsLoggedIn(true); }} className="space-y-3.5">
-            <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500 mb-1">
-                handle / email
-              </label>
-              <input
-                type="text"
-                value={authEmail}
-                onChange={(e) => setAuthEmail(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs bg-white border border-blue-200 rounded-lg text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500 mb-1">
-                passcode
-              </label>
-              <input
-                type="password"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                className="w-full px-3.5 py-2 text-xs bg-white border border-blue-200 rounded-lg text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 mt-2 rounded-lg text-xs font-semibold bg-blue-800 hover:bg-blue-900 text-white shadow-xs transition active:scale-[0.98] cursor-pointer"
-            >
-              open notepad
-            </button>
-          </form>
-
-          <div className="mt-6 text-center text-[11px] font-mono text-slate-400">
-            expo quick-access enabled
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================
-  // VIEW 2: PROFILE & NOTEBOARD
-  // ==========================================
   return (
     <div className="min-h-screen bg-[#edf3fa] text-slate-800 flex flex-col items-center font-sans">
       <div className="w-full max-w-md min-h-screen flex flex-col justify-between bg-[#f8fbfe] border-x border-blue-200/60 shadow-[0_0_25px_rgba(186,211,238,0.35)] relative">
@@ -245,7 +194,7 @@ export default function StickieDashboard() {
             <div className="relative">
               <div className="w-22 h-22 rounded-full bg-blue-50 border-2 border-dashed border-blue-300 p-1 shadow-xs">
                 <div className="w-full h-full rounded-full bg-blue-100/60 flex items-center justify-center font-mono font-bold text-lg text-blue-900">
-                  SK
+                  {initials}
                 </div>
               </div>
               <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-blue-700 border-2 border-white flex items-center justify-center text-[10px] text-white font-mono font-bold">
@@ -707,7 +656,7 @@ export default function StickieDashboard() {
             </div>
 
             <button
-              onClick={() => { setIsLoggedIn(false); setMenuOpen(false); }}
+              onClick={() => { localStorage.removeItem('stickie_phone'); window.location.href = '/'; }}
               className="w-full mt-6 py-2 rounded text-xs font-mono border border-slate-300 text-slate-600 hover:bg-slate-100 transition"
             >
               sign out

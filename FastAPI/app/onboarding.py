@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import secrets
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from app.clients.google_oauth_web import exchange_code_for_token, get_authorization_url
@@ -110,11 +110,15 @@ def oauth_google_start(phone: str) -> RedirectResponse:
 
 
 @router.get("/oauth/google/callback")
-def oauth_google_callback(code: str, state: str) -> HTMLResponse:
+def oauth_google_callback(code: str, state: str) -> RedirectResponse:
     """Google redirects back here after consent. `state` is the phone
     number we sent in oauth_google_start. Stores the real credentials on
     that user's row -- this is what makes their own calendar usable
-    later, instead of only Bhaumi's."""
+    later, instead of only Bhaumi's. Sends them straight back into the
+    site (same tab, same phone/browser that started onboarding, so
+    stickie_phone is already in its localStorage) instead of leaving them
+    on a dead-end "close this tab" page -- the site's own status check
+    now sees has_calendar=true and shows the real dashboard immediately."""
     token_json = exchange_code_for_token(code, state)
 
     with get_session() as session:
@@ -126,8 +130,4 @@ def oauth_google_callback(code: str, state: str) -> HTMLResponse:
         user.google_token = token_json
         session.commit()
 
-    return HTMLResponse(
-        "<html><body style='font-family:sans-serif;text-align:center;padding:4rem'>"
-        "<h2>Calendar connected!</h2><p>You can close this tab and go back to Stickie.</p>"
-        "</body></html>"
-    )
+    return RedirectResponse(FRONTEND_BASE_URL)

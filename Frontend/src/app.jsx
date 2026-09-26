@@ -70,5 +70,5 @@ export default function App() {
     );
   }
 
-  return <StickieDashboard />;
+  return <StickieDashboard name={status.name} phone={phone} interests={status.interests} />;
 }
