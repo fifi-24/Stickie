@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../api';
 
 const DEFAULT_INTERESTS = [
   "Trivia Nights", "Pickleball", "Coffee Catchups", "Board Games",

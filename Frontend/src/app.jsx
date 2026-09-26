@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import StickieDashboard from './components/StickieDashboard';
 import Onboarding from './components/Onboarding';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from './api';
 
 // The site's front door: every visitor either has a verified phone number
 // with a real, completed profile (name + interests + Google Calendar) —

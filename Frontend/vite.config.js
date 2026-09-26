@@ -7,4 +7,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    // Vite blocks requests with an unrecognized Host header by default
+    // (DNS-rebinding protection) — without this, the site 403s the
+    // instant it's opened through a tunnel instead of localhost.
+    allowedHosts: true,
+  },
 })
