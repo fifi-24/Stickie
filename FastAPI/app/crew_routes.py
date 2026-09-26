@@ -6,7 +6,7 @@
 
 import datetime as dt
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app.crew_digest import list_crew, send_one_now
@@ -90,6 +90,46 @@ def nudge_one(body: NudgeOneRequest) -> dict:
 class SeedDemoRequest(BaseModel):
     phone: str
 
+class DeleteContactRequest(BaseModel):
+    owner_phone: str
+
+# Ensure router matches what crew_routes uses (e.g. router = APIRouter())
+@router.delete("/contacts/{contact_id}")
+def delete_contact(contact_id: str, owner_phone: str = Query(...)):
+    owner_p = normalize_phone(owner_phone)
+
+    with get_session() as session:
+        owner = session.query(User).filter_by(phone=owner_p).one_or_none()
+        if owner is None:
+            raise HTTPException(status_code=404, detail="No user with that phone")
+
+        # 1. Try deleting by primary key ID if numeric (solo contacts)
+        if contact_id.isdigit():
+            target = (
+                session.query(Contact)
+                .filter_by(id=int(contact_id), owner_user_id=owner.id)
+                .one_or_none()
+            )
+            if target:
+                session.delete(target)
+                session.commit()
+                return {"status": "ok", "deleted": contact_id}
+
+        # 2. If not numeric or not found by ID, try deleting by phone number
+        target_phone = normalize_phone(contact_id)
+        targets = (
+            session.query(Contact)
+            .filter_by(owner_user_id=owner.id, phone=target_phone)
+            .all()
+        )
+        if targets:
+            for t in targets:
+                session.delete(t)
+            session.commit()
+            return {"status": "ok", "deleted": contact_id}
+
+        # If it wasn't found by id or phone
+        return {"status": "not_found", "id": contact_id}
 
 _DEMO_CONTACTS = [
     {"name": "Nancy Park", "phone": "+15555550101", "cadence_days": 30, "days_ago": 45},
