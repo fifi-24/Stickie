@@ -1,11 +1,53 @@
 # THE Muse Spark seam. Every place that needs to understand messy human
-# text calls interpret() — tonight it's a plain keyword heuristic (no
-# network call, $0 cost, works fully offline). Tomorrow, once MODEL_API_KEY
-# is live, replace the body of interpret() with a call to
-# app.clients.muse_spark.ask_muse_spark, prompting it to pick the option
-# the reply matches (or name a counter-proposal). Nothing outside this
-# file needs to change — every caller already just does:
-#     interpret(reply_text, options) -> str
+# text calls one of these two functions — tonight both are plain keyword
+# heuristics (no network call, $0 cost, works fully offline). Tomorrow,
+# once MODEL_API_KEY is live, replace each function's body with a real
+# Muse Spark call. Nothing outside this file needs to change.
+
+
+# Flow A, step 1: detect a plan forming in a chat transcript.
+# Matches the interest-tag vocabulary from onboarding, so a detected
+# activity lines up with what search_places() is given later.
+ACTIVITY_TAGS = [
+    "trivia", "coffee", "hiking", "live music", "board games", "brunch",
+    "movies", "sports", "karaoke", "pickleball", "study session", "food truck",
+]
+
+_AFFIRMATIONS = (
+    "omg yes", "let's go", "lets go", "i'm down", "im down", "sounds good",
+    "count me in", "yeah", "yes", "sure", "down",
+)
+
+
+def detect_plan_intent(messages: list[dict]) -> dict | None:
+    """messages: [{"sender": phone, "text": str}, ...] oldest first.
+    Returns {"activity": tag, "proposer": phone, "affirmers": [phone, ...]}
+    the moment someone mentions an activity and at least one *other* person
+    affirms afterward — or None if no plan is forming yet.
+    Tomorrow: replace the body with a Muse Spark call over the same window,
+    asking it to return this same shape."""
+    for i, msg in enumerate(messages):
+        text = msg["text"].lower()
+        activity = next((tag for tag in ACTIVITY_TAGS if tag in text), None)
+        if not activity:
+            continue
+
+        proposer = msg["sender"]
+        affirmers: list[str] = []
+        for later in messages[i + 1 :]:
+            if later["sender"] == proposer or later["sender"] in affirmers:
+                continue
+            if any(word in later["text"].lower() for word in _AFFIRMATIONS):
+                affirmers.append(later["sender"])
+
+        if affirmers:
+            return {"activity": activity, "proposer": proposer, "affirmers": affirmers}
+
+    return None
+
+
+# Flow A's private-RSVP fallback / Flow B's solo mode: resolve a free-text
+# reply against a fixed set of options.
 
 # Strong signals first (unambiguous), weak ones ("one", "two" as bare
 # number-words) last — otherwise "the second one" would match index 1's

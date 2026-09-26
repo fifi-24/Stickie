@@ -7,7 +7,10 @@ import json
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from app.conversation import record_message, recent_messages
+from app.planning import post_proposal_to_group
 from app.primitives import resolve_pending_reply
+from app.reasoning import detect_plan_intent
 
 app = FastAPI(title="Stickie Backend")
 
@@ -48,5 +51,16 @@ async def sendblue_webhook(request: Request):
     resolution = resolve_pending_reply(sender, content)
     if resolution is not None:
         print(f"Resolved pending reply for {sender} -> {resolution}")
+
+    # Flow A: feed every group message into the recent-message window,
+    # check whether a plan is forming (step 1), and if so, build + send
+    # the real proposal (steps 2-3). post_proposal_to_group() clears the
+    # conversation buffer so this doesn't fire again for the same plan.
+    record_message(sender, content or "")
+    plan = detect_plan_intent(recent_messages())
+    if plan is not None:
+        print(f"PLAN DETECTED: {plan}")
+        result = post_proposal_to_group(plan["activity"])
+        print(f"PROPOSAL SENT: {result}")
 
     return {"status": "received", "from": sender, "preview": content}
