@@ -7,6 +7,7 @@
 import datetime as dt
 import json
 from urllib.parse import urlencode
+from zoneinfo import ZoneInfo
 
 from app.clients.google_calendar import get_freebusy
 from app.clients.places import search_places
@@ -20,6 +21,7 @@ from app.primitives import propose_options_and_await_reply
 # group actually is tonight. Swap for real per-user locations later.
 DEMO_LAT = 33.7756
 DEMO_LNG = -84.3963
+DEMO_TZ = ZoneInfo("America/New_York")
 
 # Tonight's single-group simplification: one plan collecting answers at a
 # time. _active_plan_id tracks which Plan row; _active_plan_times maps
@@ -32,9 +34,18 @@ _active_plan_activity: str = ""
 
 def _candidate_times(count: int = 2) -> list[tuple[str, dt.datetime]]:
     """A couple of open-looking (label, datetime) slots over the next few
-    days, based on Bhaumi's own calendar (the only one connected tonight)."""
-    now = dt.datetime.now(dt.timezone.utc)
-    busy = get_freebusy("primary", now, now + dt.timedelta(days=5))
+    days, based on Bhaumi's own calendar (the only one connected tonight).
+
+    Bug that was here before: "3pm"/"6pm" were computed against a UTC-based
+    day-start, so they were actually 3pm/6pm UTC — 11am/2pm Eastern, not
+    3pm/6pm Eastern. Now built in DEMO_TZ (the demo's real local zone) and
+    only converted to UTC at the boundary (busy-block comparison, and the
+    datetime this function hands back for storage/calendar links) — a
+    proper UTC instant converts correctly to whatever zone a recipient's
+    own device/calendar is set to, which is what "device timing" means."""
+    now_local = dt.datetime.now(DEMO_TZ)
+    now_utc = now_local.astimezone(dt.timezone.utc)
+    busy = get_freebusy("primary", now_utc, now_utc + dt.timedelta(days=5))
     busy_ranges = [
         (dt.datetime.fromisoformat(b["start"].replace("Z", "+00:00")),
          dt.datetime.fromisoformat(b["end"].replace("Z", "+00:00")))
@@ -42,14 +53,15 @@ def _candidate_times(count: int = 2) -> list[tuple[str, dt.datetime]]:
     ]
 
     candidates: list[tuple[str, dt.datetime]] = []
-    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
     for day_offset in range(1, 6):
-        for hour in (15, 18):  # 3pm, 6pm
-            slot_start = today + dt.timedelta(days=day_offset, hours=hour)
-            slot_end = slot_start + dt.timedelta(hours=1)
-            overlaps = any(b_start < slot_end and slot_start < b_end for b_start, b_end in busy_ranges)
+        for hour in (15, 18):  # 3pm, 6pm, Eastern
+            slot_start_local = today_local + dt.timedelta(days=day_offset, hours=hour)
+            slot_start_utc = slot_start_local.astimezone(dt.timezone.utc)
+            slot_end_utc = slot_start_utc + dt.timedelta(hours=1)
+            overlaps = any(b_start < slot_end_utc and slot_start_utc < b_end for b_start, b_end in busy_ranges)
             if not overlaps:
-                candidates.append((slot_start.strftime("%A %-I:%M%p"), slot_start))
+                candidates.append((slot_start_local.strftime("%A %-I:%M%p"), slot_start_utc))
             if len(candidates) >= count:
                 return candidates
     return candidates
