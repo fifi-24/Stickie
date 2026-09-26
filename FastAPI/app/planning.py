@@ -39,6 +39,16 @@ _active_plan_times: dict[str, dt.datetime] = {}
 _active_plan_activity: str = ""
 
 
+def has_active_plan() -> bool:
+    """Tonight's single-group simplification only tracks one plan
+    collecting votes at a time -- passive detection must not fire again
+    while one is already in flight, or every new unrelated message (even
+    a private RSVP reply) re-detects the same plan and calls
+    post_proposal_to_group() again, which posts a fresh "Ok <activity>..."
+    to the group AND resets the RSVP count back to zero every time."""
+    return _active_plan_id is not None
+
+
 def propose_plan(activity: str) -> dict:
     """Step 2: find a real venue + real candidate times for a detected
     activity, checked against the whole group's calendars."""

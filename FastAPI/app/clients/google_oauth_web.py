@@ -75,7 +75,16 @@ def exchange_code_for_token(code: str, state: str) -> str:
 def get_freebusy_for_user(token_json: str, time_min, time_max) -> list[dict]:
     """Same shape as google_calendar.get_freebusy(), but for a specific
     user's own stored token instead of Bhaumi's global one."""
-    creds = Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)
+    # Deliberately NOT passing SCOPES here -- that would override whatever
+    # scope this token's refresh_token was actually granted under with
+    # today's SCOPES constant. For anyone who connected before the
+    # readonly->full-calendar upgrade, that lie is what Google's token
+    # endpoint was rejecting with a hard "invalid_scope" on every single
+    # refresh (not just on the write calls that scope change was meant to
+    # gate) -- reusing the real stored scope lets an old readonly token
+    # keep working for reads and only 403 on the insert() write call,
+    # which is already handled below by the caller's try/except.
+    creds = Credentials.from_authorized_user_info(json.loads(token_json))
     if creds.expired and creds.refresh_token:
         creds.refresh(GoogleRequest())
     service = build("calendar", "v3", credentials=creds)
@@ -91,7 +100,7 @@ def get_freebusy_for_user(token_json: str, time_min, time_max) -> list[dict]:
 def create_event_for_user(token_json: str, summary: str, location: str, start, end) -> dict:
     """Inserts the finalized plan directly onto this person's own primary
     calendar -- real auto-add, not just a link they have to tap."""
-    creds = Credentials.from_authorized_user_info(json.loads(token_json), SCOPES)
+    creds = Credentials.from_authorized_user_info(json.loads(token_json))
     if creds.expired and creds.refresh_token:
         creds.refresh(GoogleRequest())
     service = build("calendar", "v3", credentials=creds)

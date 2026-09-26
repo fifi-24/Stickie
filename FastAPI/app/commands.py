@@ -2,13 +2,16 @@
 # passive detection. Checked FIRST in the webhook (app/main.py), before
 # anything else -- a recognized command short-circuits normal processing.
 
+import datetime as dt
 import re
 import secrets
 
 from app.clients.sendblue import send_message
-from app.config import FRONTEND_BASE_URL
+from app.config import DEMO_GROUP_NUMBERS, FRONTEND_BASE_URL
 from app.crew_digest import build_and_send_digest
-from app.db import OnboardingToken, get_session
+from app.db import Contact, OnboardingToken, User, get_session
+from app.mutual_mode import record_hangout
+from app.phone import normalize_phone
 from app.planning import post_proposal_to_group
 
 COMMAND_PATTERN = re.compile(r"^/(\w+)\s*(.*)$", re.DOTALL)
@@ -42,6 +45,80 @@ def handle_plan_command(sender: str, activity: str) -> None:
     print(f"MANUAL /plan by {sender}: {result}")
 
 
+def handle_join_command(sender: str) -> None:
+    """/join -- lets anyone (e.g. a judge trying the demo live) add
+    themselves into the group Flow A plans for, on the spot, with no
+    restart and no env-var edit. Also doubles as this number's real
+    SendBlue "verified contact" text -- the free tier requires a
+    recipient to message us first before we can message them, which
+    texting this command already satisfies.
+
+    Mutates DEMO_GROUP_NUMBERS in place (append, never reassign) so
+    every other module's own `from app.config import DEMO_GROUP_NUMBERS`
+    reference -- planning.py, crew_digest.py, mutual_mode.py -- keeps
+    pointing at the same list object and sees the new member too."""
+    phone = normalize_phone(sender)
+    if phone in DEMO_GROUP_NUMBERS:
+        send_message(phone, "You're already in the crew!")
+        return
+    DEMO_GROUP_NUMBERS.append(phone)
+    send_message(
+        phone,
+        "You're in! Next time this group plans something, you'll get a private "
+        "heads-up to pick a time too. Text /website any time for a link to your "
+        "own dashboard (calendar connect is optional).",
+    )
+
+
+def handle_met_command(sender: str, name: str) -> None:
+    """/met <name> -- manually log a real hangout without waiting on a
+    Flow A plan to finalize. If <name> matches one of the sender's own
+    solo Contacts, updates that Contact.last_met -- the exact field the
+    Crew tab and /nudge digest already read for days_since/overdue, so
+    this feeds the real logic with no other changes needed. If <name>
+    instead matches another real Stickie user, reuses record_hangout()
+    (app/mutual_mode.py) -- the same call planning.py already makes
+    when a Flow A plan finalizes via RSVP, so a manual /met and a real
+    confirmed plan update the drift clock identically."""
+    name = name.strip()
+    if not name:
+        send_message(sender, "Who'd you meet? Try: /met Nancy")
+        return
+
+    other_phone = None
+    other_name = None
+    name_pattern = f"%{name}%"
+    with get_session() as session:
+        owner = session.query(User).filter_by(phone=sender).one_or_none()
+        contact = (
+            session.query(Contact)
+            .filter(Contact.owner_user_id == owner.id, Contact.name.ilike(name_pattern))
+            .first()
+            if owner
+            else None
+        )
+        if contact is not None:
+            contact.last_met = dt.date.today()
+            session.commit()
+            send_message(sender, f"Got it -- logged that you just met up with {contact.name}.")
+            return
+
+        other = (
+            session.query(User)
+            .filter(User.phone.in_(DEMO_GROUP_NUMBERS), User.name.ilike(name_pattern))
+            .first()
+        )
+        if other is not None and other.phone != sender:
+            other_phone, other_name = other.phone, other.name
+
+    if other_phone:
+        record_hangout([sender, other_phone])
+        send_message(sender, f"Got it -- logged that you and {other_name} just hung out.")
+        return
+
+    send_message(sender, f"Couldn't find anyone named '{name}' in your crew or contacts.")
+
+
 def handle_nudge_command(sender: str) -> None:
     """/nudge -- builds and texts back a personal digest of everyone
     overdue in your crew (mutual friends + your own solo contacts), each
@@ -69,5 +146,11 @@ def try_handle_command(sender: str, content: str | None) -> bool:
         return True
     if command == "nudge":
         handle_nudge_command(sender)
+        return True
+    if command == "join":
+        handle_join_command(sender)
+        return True
+    if command == "met":
+        handle_met_command(sender, rest)
         return True
     return False

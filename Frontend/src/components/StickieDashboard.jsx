@@ -426,16 +426,26 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
             >
               <div className="h-2 absolute top-0 left-0 right-0 rounded-t-sm bg-blue-300/30" />
               <div>
-                <div className="text-xs font-bold mt-1" style={{ color: '#0369A1' }}>Google Calendar</div>
+                <div className="text-xs font-bold mt-1 flex items-center gap-1.5" style={{ color: '#0369A1' }}>
+                  Google Calendar
+                  {hasCalendar && (
+                    <span
+                      className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] text-white"
+                      style={{ background: '#4a7a4a' }}
+                    >
+                      ✓
+                    </span>
+                  )}
+                </div>
                 <div className="text-[11px] font-mono text-slate-600">
-                  {hasCalendar === null ? 'checking...' : hasCalendar ? 'Connected (syncing live)' : 'Not connected'}
+                  {hasCalendar === null ? 'checking...' : hasCalendar ? 'Already connected' : 'Not connected'}
                 </div>
               </div>
               <button
                 onClick={connectCalendar}
                 className="text-[11px] font-mono px-3 py-1 rounded-xs border font-semibold bg-white text-sky-800 border-sky-300 shadow-xs hover:bg-sky-50"
               >
-                {hasCalendar ? 'reconnect' : 'connect'}
+                {hasCalendar ? 'change' : 'connect'}
               </button>
             </div>
 

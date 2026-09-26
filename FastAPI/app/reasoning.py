@@ -74,11 +74,24 @@ def detect_plan_intent(messages: list[dict]) -> dict | None:
         "sender's phone number in brackets.\n\n"
         f"{numbered}\n\n"
         f"Known senders: {', '.join(known_senders)}\n\n"
-        "Decide whether a real hangout plan is forming: someone proposes an "
-        "activity (directly or indirectly) and at least one OTHER person "
-        "affirms it afterward (agreement, enthusiasm, or a reaction implying "
-        "'let's do this' -- not just replying on-topic). Sarcasm, joking, or "
-        "explicitly declining does not count as affirming.\n\n"
+        "Decide whether a real, concrete hangout plan is forming RIGHT NOW: "
+        "someone proposes a specific activity (directly or indirectly) and "
+        "at least one OTHER person genuinely commits to it afterward -- real "
+        "enthusiasm or agreement to actually do it, not just acknowledging "
+        "the idea exists.\n\n"
+        "Do NOT count it as a plan forming for any of these -- they are the "
+        "most common false positives and must return false:\n"
+        "- Sarcasm, joking, or explicitly declining.\n"
+        "- A vague, no-commitment wish with no real intent to act on it soon "
+        "(e.g. 'we should do that sometime', 'we never hang out anymore').\n"
+        "- A rhetorical or hypothetical question ('what if we did X') with no "
+        "one actually agreeing to do it.\n"
+        "- A low-effort reaction to the topic itself (a laughing emoji, "
+        "'lol', 'same') that isn't actually committing to show up.\n"
+        "- Talking ABOUT a past or hypothetical hangout, not proposing a new one.\n"
+        "When genuinely unsure whether this is a real commitment or just "
+        "banter, prefer false -- a missed real plan is far less costly than "
+        "spamming the group with an unwanted proposal.\n\n"
         "Reply with ONLY a JSON object, no other text:\n"
         '{"plan_detected": true or false, "activity": "a couple words '
         'naming the activity, or null", "proposer": "the exact phone number '
@@ -126,11 +139,20 @@ def _extract_day_time(text: str) -> tuple[str | None, int | None, str | None]:
     return day, int(match.group(1)), match.group(3)
 
 
+def _has_word(text: str, word: str) -> bool:
+    """Whole-word match, not a bare substring check -- "one" as a plain
+    substring matches inside "zone", "someone", "phone", silently
+    misreading an unrelated reply as picking option 1. Confirmed live:
+    a group-chat aside containing "time zone" got recorded as a real
+    RSVP pick this way."""
+    return re.search(rf"\b{re.escape(word)}\b", text) is not None
+
+
 def _interpret_heuristic(reply_text: str, options: list[str]) -> str:
     text = reply_text.lower()
 
     for i, option in enumerate(options, start=1):
-        if str(i) in text or option.lower() in text or any(w in text for w in _STRONG_ORDINALS.get(i, ())):
+        if str(i) in text or option.lower() in text or any(_has_word(text, w) for w in _STRONG_ORDINALS.get(i, ())):
             return option
 
     reply_day, reply_hour, reply_ampm = _extract_day_time(text)
@@ -143,7 +165,7 @@ def _interpret_heuristic(reply_text: str, options: list[str]) -> str:
                 return option
 
     for i, option in enumerate(options, start=1):
-        if any(w in text for w in _WEAK_ORDINALS.get(i, ())):
+        if any(_has_word(text, w) for w in _WEAK_ORDINALS.get(i, ())):
             return option
 
     if len(options) == 1:

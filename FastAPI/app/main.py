@@ -19,7 +19,7 @@ from app.crew_digest import try_resolve_digest_approval
 from app.crew_routes import router as crew_router
 from app.mutual_mode import run_mutual_mode_check
 from app.onboarding import router as onboarding_router
-from app.planning import post_proposal_to_group, record_time_pick
+from app.planning import has_active_plan, post_proposal_to_group, record_time_pick
 from app.primitives import get_pending_options, resolve_pending_reply
 from app.reasoning import NEEDS_CLARIFICATION_PREFIX, detect_plan_intent
 
@@ -64,6 +64,16 @@ async def sendblue_webhook(request: Request):
     sender = payload.get("from_number") or payload.get("number")
     content = payload.get("content")
     is_outbound = payload.get("is_outbound", False)
+    # Private asks (a nudge digest, a plan's time-pick options) are always
+    # sent 1:1 -- a reply to them is only ever expected back in that same
+    # 1:1 thread. Without this check, an unrelated group-chat aside from
+    # someone who happens to have a pending private question gets matched
+    # against it purely by phone number and silently miscounted as their
+    # real answer (confirmed live: a group message containing "zone" got
+    # recorded as a real RSVP pick via the heuristic's substring match on
+    # "one"). Symmetrically, Flow A's "is a plan forming" detection only
+    # makes sense against real group conversation, not private replies.
+    is_group_message = payload.get("message_type") == "group"
 
     if is_outbound:
         print(f"Outbound status update for message to {payload.get('to_number')}: {payload.get('status')}")
@@ -77,42 +87,45 @@ async def sendblue_webhook(request: Request):
         print(f"COMMAND HANDLED for {sender}")
         return {"status": "command_handled", "from": sender}
 
-    # If this sender has a pending /nudge digest awaiting their approval,
-    # a reply like "1", "all", or "no" belongs to that decision, not to
-    # anything else -- check it before Flow A's own pending-reply logic
-    # so the two can never be mixed up.
-    if try_resolve_digest_approval(sender, content):
-        print(f"DIGEST APPROVAL HANDLED for {sender}")
-        return {"status": "digest_approval_handled", "from": sender}
+    if not is_group_message:
+        # If this sender has a pending /nudge digest awaiting their approval,
+        # a reply like "1", "all", or "no" belongs to that decision, not to
+        # anything else -- check it before Flow A's own pending-reply logic
+        # so the two can never be mixed up.
+        if try_resolve_digest_approval(sender, content):
+            print(f"DIGEST APPROVAL HANDLED for {sender}")
+            return {"status": "digest_approval_handled", "from": sender}
 
-    # If this reply matches one of the active plan's private time-pick
-    # options, tally it — record_time_pick() no-ops harmlessly if there's
-    # no active plan or this isn't a real match (e.g. an unrelated message).
-    resolution = resolve_pending_reply(sender, content)
-    if resolution is not None:
-        print(f"Resolved pending reply for {sender} -> {resolution}")
-        if resolution.startswith(NEEDS_CLARIFICATION_PREFIX):
-            # A real attempt to answer, just too ambiguous to resolve on
-            # its own (e.g. "another time works better" with no hint
-            # which) -- ask a real follow-up instead of the plan just
-            # silently stalling forever, which is what used to happen.
-            options = get_pending_options(sender) or []
-            if options:
-                choices = " or ".join(options) if len(options) <= 2 else ", ".join(options)
-                send_message(sender, f"sorry, which did you mean -- {choices}? lmk and i'll lock it in")
-        else:
-            record_time_pick(sender, resolution)
+        # If this reply matches one of the active plan's private time-pick
+        # options, tally it — record_time_pick() no-ops harmlessly if there's
+        # no active plan or this isn't a real match (e.g. an unrelated message).
+        resolution = resolve_pending_reply(sender, content)
+        if resolution is not None:
+            print(f"Resolved pending reply for {sender} -> {resolution}")
+            if resolution.startswith(NEEDS_CLARIFICATION_PREFIX):
+                # A real attempt to answer, just too ambiguous to resolve on
+                # its own (e.g. "another time works better" with no hint
+                # which) -- ask a real follow-up instead of the plan just
+                # silently stalling forever, which is what used to happen.
+                options = get_pending_options(sender) or []
+                if options:
+                    choices = " or ".join(options) if len(options) <= 2 else ", ".join(options)
+                    send_message(sender, f"sorry, which did you mean -- {choices}? lmk and i'll lock it in")
+            else:
+                record_time_pick(sender, resolution)
 
     # Flow A: feed every group message into the recent-message window,
     # check whether a plan is forming (step 1), and if so, build + send
     # the real proposal (steps 2-3). post_proposal_to_group() clears the
     # conversation buffer so this doesn't fire again for the same plan.
-    record_message(sender, content or "")
-    plan = detect_plan_intent(recent_messages())
-    if plan is not None:
-        print(f"PLAN DETECTED: {plan}")
-        result = post_proposal_to_group(plan["activity"])
-        print(f"PROPOSAL SENT: {result}")
+    if is_group_message:
+        record_message(sender, content or "")
+        if not has_active_plan():
+            plan = detect_plan_intent(recent_messages())
+            if plan is not None:
+                print(f"PLAN DETECTED: {plan}")
+                result = post_proposal_to_group(plan["activity"])
+                print(f"PROPOSAL SENT: {result}")
 
     return {"status": "received", "from": sender, "preview": content}
 

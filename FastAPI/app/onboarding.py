@@ -41,7 +41,10 @@ def onboard_start(body: StartRequest) -> dict:
     except Exception as exc:
         print(f"❌ [STICKIE ERROR] send_message failed: {exc}")
         print(f"👉 HACKATHON FALLBACK: Enter code '{code}' on the web screen right now!")
-        raise HTTPException(status_code=400, detail=f"Sendblue error: {exc}") from exc
+        # The real exception (SendBlue's raw error text) stays server-side
+        # only -- surfacing it to the browser looks like a broken app to
+        # whoever's typing their number in, e.g. a judge trying the demo.
+        raise HTTPException(status_code=400, detail="Could not text that number -- double check it and try again") from exc
         
     return {"status": "sent"}
 
@@ -179,8 +182,12 @@ def onboard_complete(body: CompleteRequest) -> dict:
 def oauth_google_start(phone: str) -> RedirectResponse:
     """'Connect Google Calendar' button hits this; it redirects to Google's
     real consent screen. `phone` rides through as `state` so the callback
-    knows whose account to attach the token to."""
-    return RedirectResponse(get_authorization_url(state=phone))
+    knows whose account to attach the token to. Must be normalized here,
+    the same way every other lookup in this file is -- an un-normalized
+    `state` silently attached the token to a brand-new duplicate User row
+    instead of the caller's real one, so "reconnect" looked like it worked
+    but never actually touched the row the webhook reads from."""
+    return RedirectResponse(get_authorization_url(state=normalize_phone(phone)))
 
 
 @router.get("/oauth/google/callback")
