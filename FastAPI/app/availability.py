@@ -79,7 +79,16 @@ def suggest_venue_and_time(phones: list[str], activity: str, count: int = 2) -> 
     """Real venue + real candidate times for `activity`, checked against
     exactly the calendars of `phones` (not necessarily the whole group --
     mutual mode only wants the two people actually being nudged)."""
-    places = search_places(activity, DEMO_LAT, DEMO_LNG)
+    try:
+        places = search_places(activity, DEMO_LAT, DEMO_LNG)
+    except Exception as exc:
+        # A Places API hiccup (rate limit, quota, transient network) used
+        # to crash every caller of this function -- GET /crew for the
+        # whole Crew tab, and /nudge's digest generation for everyone.
+        # Falling back to the activity name keeps both working; the
+        # suggestion is just less specific this one time.
+        print(f"Places lookup failed for {activity!r}, falling back to a generic venue name: {exc}")
+        places = []
     venue = places[0]["name"] if places else activity.title()
     times = candidate_times(phones, count=count)
     return {"venue": venue, "times": [label for label, _ in times], "time_values": [v for _, v in times]}

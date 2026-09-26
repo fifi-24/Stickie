@@ -170,7 +170,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
     await fetch(`${API_BASE}/contacts/${contactId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cadence_days: CADENCE_DAYS[cadenceLabel] }),
+      body: JSON.stringify({ owner_phone: phone, cadence_days: CADENCE_DAYS[cadenceLabel] }),
     });
     fetchCrew();
   };

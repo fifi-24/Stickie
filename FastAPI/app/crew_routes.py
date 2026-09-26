@@ -47,6 +47,7 @@ def add_contact(body: AddContactRequest) -> dict:
 
 
 class UpdateContactRequest(BaseModel):
+    owner_phone: str
     cadence_days: int
 
 
@@ -54,10 +55,15 @@ class UpdateContactRequest(BaseModel):
 def update_contact(contact_id: int, body: UpdateContactRequest) -> dict:
     """Real per-contact cadence editing -- each solo contact can have its
     own overdue threshold, unlike mutual friends, which currently share
-    one setting (see User.nudge_threshold_days)."""
+    one setting (see User.nudge_threshold_days). Verifies the contact
+    actually belongs to the caller -- contact ids are small sequential
+    integers visible in every /crew response, so without this check
+    anyone could edit anyone else's contact by id."""
+    owner_phone = normalize_phone(body.owner_phone)
     with get_session() as session:
+        owner = session.query(User).filter_by(phone=owner_phone).one_or_none()
         contact = session.query(Contact).filter_by(id=contact_id).one_or_none()
-        if contact is None:
+        if contact is None or owner is None or contact.owner_user_id != owner.id:
             raise HTTPException(status_code=404, detail="No such contact")
         contact.cadence_days = body.cadence_days
         session.commit()
