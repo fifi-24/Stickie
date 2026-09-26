@@ -61,13 +61,18 @@ export default function Onboarding({ phone, status, onComplete }) {
   };
 
   const card = "w-full max-w-sm bg-[#fafcfe] border border-blue-200/80 rounded-2xl p-8 shadow-[4px_6px_0px_0px_rgba(186,211,238,0.7)] relative rotate-[-0.5deg]";
-  const wrap = "min-h-screen bg-[#edf3fa] flex flex-col justify-center items-center p-6 font-sans";
+  const wrap = "min-h-screen flex flex-col justify-center items-center p-6 font-sans";
+  const wrapStyle = { background: 'radial-gradient(circle at 50% 0%, #f3f8fd 0%, #e4edf7 60%, #dbe6f2 100%)' };
   const peekingTab = (
     <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-6 bg-blue-100/80 border border-blue-200/60 rounded-xs backdrop-blur-xs opacity-90 shadow-xs" />
   );
   const logo = (
     <div className="flex flex-col items-center mb-6 pt-2">
-      <div className="w-12 h-12 rounded-xl bg-blue-100/70 border border-blue-200 flex items-center justify-center font-mono font-bold text-blue-900 mb-3 shadow-inner">[S]</div>
+      {/* Placeholder logomark, matches the dashboard's -- a real brand
+          mark replaces both once that's decided. */}
+      <div className="w-12 h-12 rounded-xl bg-blue-700 shadow-inner mb-3 relative overflow-hidden">
+        <div className="absolute -top-3 -right-3 w-6 h-6 bg-[#fafcfe] rotate-45" />
+      </div>
       <h1 className="text-xl font-bold tracking-tight text-slate-900">Stickie</h1>
       <p className="text-xs text-blue-900/60 mt-0.5">plans that stick.</p>
     </div>
@@ -76,7 +81,7 @@ export default function Onboarding({ phone, status, onComplete }) {
   // Stage 1: get + verify a phone number
   if (!phone) {
     return (
-      <div className={wrap}>
+      <div className={wrap} style={wrapStyle}>
         <div className={card}>
           {peekingTab}
           {logo}
@@ -111,7 +116,7 @@ export default function Onboarding({ phone, status, onComplete }) {
   // Stage 2: real profile — name + interests
   if (!saved) {
     return (
-      <div className={wrap}>
+      <div className={wrap} style={wrapStyle}>
         <div className={card}>
           {peekingTab}
           {logo}
@@ -158,7 +163,7 @@ export default function Onboarding({ phone, status, onComplete }) {
 
   // Stage 3: real Google Calendar connect
   return (
-    <div className={wrap}>
+    <div className={wrap} style={wrapStyle}>
       <div className={`${card} text-center`}>
         {peekingTab}
         {logo}

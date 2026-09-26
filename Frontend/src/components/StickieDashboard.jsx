@@ -12,13 +12,19 @@ const DEFAULT_INTERESTS = [
   "Study Sessions"
 ];
 
+// TODO(real data): still mock -- no backend endpoint for a real contacts
+// list exists yet. Wire this to a real GET /contacts call before demoing
+// this tab as if it were live data.
 const INITIAL_FRIENDS = [
   { id: 1, name: "Anvi", handle: "@anvi_m", status: "Active", cadence: "Weekly", lastMet: "3d ago", tag: "AN" },
   { id: 2, name: "Bhaumi", handle: "@bhaumi.p", status: "Active", cadence: "Bi-weekly", lastMet: "1w ago", tag: "BP" },
   { id: 3, name: "Ellie", handle: "@ellie_v", status: "In Flow", cadence: "Weekly", lastMet: "Yesterday", tag: "EV" },
-  { id: 4, name: "Nancy (Rolodex)", handle: "@nancy_hackgt", status: "Due", cadence: "Monthly", lastMet: "4w ago", tag: "NR" }
+  { id: 4, name: "Nancy", handle: "@nancy_hackgt", status: "Due", cadence: "Monthly", lastMet: "4w ago", tag: "NR" }
 ];
 
+// TODO(real data): still mock -- no backend endpoint returns real
+// confirmed-plan history yet. Wire this to real Plan rows before demoing
+// this tab as if it were live data.
 const PAST_HANGOUTS = [
   {
     id: 101,
@@ -78,7 +84,6 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
   const [fullName, setFullName] = useState(name || 'Stickie User');
   const [pronouns, setPronouns] = useState('they/them');
   const [phone, setPhone] = useState(realPhone || '');
-  const [bio, setBio] = useState('making plans stick.');
   const [cadence, setCadence] = useState('Weekly');
   const [presence, setPresence] = useState('Active');
 
@@ -156,13 +161,22 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
   };
 
   return (
-    <div className="min-h-screen bg-[#edf3fa] text-slate-800 flex flex-col items-center font-sans">
+    <div
+      className="min-h-screen text-slate-800 flex flex-col items-center font-sans"
+      style={{
+        background:
+          'radial-gradient(circle at 50% 0%, #f3f8fd 0%, #e4edf7 60%, #dbe6f2 100%)',
+      }}
+    >
       <div className="w-full max-w-md min-h-screen flex flex-col justify-between bg-[#f8fbfe] border-x border-blue-200/60 shadow-[0_0_25px_rgba(186,211,238,0.35)] relative">
 
         {/* TOP BAR */}
         <header className="sticky top-0 z-40 bg-[#f8fbfe]/95 backdrop-blur-md px-5 py-3.5 flex items-center justify-between border-b border-blue-100">
-          <div className="w-7 h-7 rounded-md bg-blue-100/70 border border-blue-200/80 flex items-center justify-center font-mono text-[11px] font-bold text-blue-900 shadow-xs">
-            [S]
+          {/* Placeholder logomark -- a real brand mark replaces this, not
+              literal bracket-text. Keeping it a plain shape (no letter)
+              until that's decided so nothing here reads as "final." */}
+          <div className="w-7 h-7 rounded-md bg-blue-700 shadow-xs relative overflow-hidden">
+            <div className="absolute -top-2 -right-2 w-4 h-4 bg-[#f8fbfe] rotate-45" />
           </div>
 
           <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-800">
@@ -189,8 +203,12 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
         <main className="flex-1 overflow-y-auto">
 
-          {/* PROFILE CARD */}
-          <div className="flex flex-col items-center pt-6 pb-4 px-6">
+          {/* PROFILE CARD -- same paper-note treatment as the History tab's
+              cards (washi-tape strip, subtle border/shadow), so the
+              metaphor reads as one system instead of one-off. */}
+          <div className="flex flex-col items-center pt-8 pb-5 px-6 mx-4 mt-4 relative bg-white/70 border border-blue-100 rounded-2xl shadow-[2px_3px_0px_0px_rgba(203,222,244,0.5)]">
+            <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-14 h-4 bg-blue-100/80 border border-blue-200/50 rounded-xs" />
+
             <div className="relative">
               <div className="w-22 h-22 rounded-full bg-blue-50 border-2 border-dashed border-blue-300 p-1 shadow-xs">
                 <div className="w-full h-full rounded-full bg-blue-100/60 flex items-center justify-center font-mono font-bold text-lg text-blue-900">
@@ -214,41 +232,13 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               <span className="text-slate-300">•</span>
               <span className="text-[11px] text-slate-500 font-mono">{cadence.toLowerCase()} review</span>
             </div>
-
-            {/* 3-STAT TIKTOK RIBBON */}
-            <div className="flex items-center justify-center gap-7 my-4 w-full border-y border-blue-100/80 py-3">
-              <div className="flex flex-col items-center">
-                <span className="text-sm font-bold font-mono text-slate-900">12</span>
-                <span className="text-[10px] uppercase tracking-wider text-slate-500">Hangouts</span>
-              </div>
-              <div className="h-5 w-[1px] bg-blue-200/70" />
-              <div className="flex flex-col items-center">
-                <span className="text-sm font-bold font-mono text-slate-900">{friendsList.length}</span>
-                <span className="text-[10px] uppercase tracking-wider text-slate-500">Rolodex</span>
-              </div>
-              <div className="h-5 w-[1px] bg-blue-200/70" />
-              <div className="flex flex-col items-center">
-                <span className="text-sm font-bold font-mono text-slate-900">94%</span>
-                <span className="text-[10px] uppercase tracking-wider text-slate-500">Stick Rate</span>
-              </div>
-            </div>
-
-            {/* BIO */}
-            <div className="w-full text-left bg-[#f2f7fd] border border-blue-100 rounded-xl p-3 shadow-xs">
-              <p className="text-xs text-slate-700 whitespace-pre-line leading-relaxed font-sans">
-                {bio}
-              </p>
-              <div className="text-[11px] font-mono text-blue-700 mt-2 hover:underline cursor-pointer">
-                stickie.app/@{username}
-              </div>
-            </div>
           </div>
 
           {/* TABS (UNDERLINE NAV) */}
           <div className="sticky top-[52px] z-30 bg-[#f8fbfe] border-b border-blue-200/70 flex">
             {[
               { id: 'interests', label: 'Interests' },
-              { id: 'friends', label: 'Rolodex' },
+              { id: 'friends', label: 'Crew' },
               { id: 'hangouts', label: 'History' }
             ].map((tab) => (
               <button
@@ -347,12 +337,12 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
               </div>
             )}
 
-            {/* TAB 2: FRIENDS & ROLODEX */}
+            {/* TAB 2: CREW */}
             {activeTab === 'friends' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-1">
                   <span className="text-[11px] font-mono uppercase tracking-wider text-slate-500">
-                    squad cadence
+                    crew cadence
                   </span>
                   <button
                     onClick={() => setShowAddFriend(!showAddFriend)}
@@ -511,7 +501,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
             <div className="space-y-5">
               <div className="flex items-center justify-between border-b border-blue-100 pb-3">
                 <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-800">
-                  Settings & Index
+                  Settings
                 </h3>
                 <button
                   onClick={() => setMenuOpen(false)}
@@ -576,7 +566,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
 
                 <div>
                   <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                    Sendblue Line
+                    Your Phone
                   </label>
                   <input
                     type="tel"
@@ -586,53 +576,7 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                    Bio Note
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    className="w-full px-2.5 py-1 text-xs bg-white border border-blue-200 rounded outline-none"
-                  />
-                </div>
-
-                {/* Flow C Proximity Spark Trigger */}
-                <div className="pt-2 border-t border-blue-100">
-                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                    Live Demo Tool
-                  </label>
-                  <button
-                    onClick={triggerProximitySpark}
-                    className="w-full py-1.5 bg-blue-800 hover:bg-blue-900 text-white rounded text-xs font-mono font-medium shadow-2xs transition active:scale-[0.98]"
-                  >
-                    ⚡️ Fire Proximity Spark
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
-                    Presence (Flow C)
-                  </label>
-                  <div className="flex gap-1.5">
-                    {['Active', 'Busy', 'Off'].map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setPresence(mode)}
-                        className={`flex-1 py-1 text-xs font-mono rounded border transition ${
-                          presence === mode
-                            ? 'bg-blue-800 text-white border-blue-900'
-                            : 'bg-white text-slate-600 border-blue-200'
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Manual text commands anyone can send to the Sendblue line */}
+                {/* Manual text commands anyone can send to Stickie */}
                 <div className="pt-2 border-t border-blue-100">
                   <label className="block text-[10px] font-mono uppercase text-slate-500 mb-1">
                     Text Commands
@@ -658,6 +602,38 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                     </div>
                   </div>
                 </div>
+
+                {/* Internal demo/test tools only -- not something a real
+                    user should see by default. Collapsed, visually muted,
+                    kept separate from real settings above. */}
+                <details className="pt-2 border-t border-slate-200">
+                  <summary className="text-[10px] font-mono uppercase text-slate-400 cursor-pointer select-none">
+                    Debug tools (hackathon demo only)
+                  </summary>
+                  <div className="mt-2 space-y-2 opacity-70">
+                    <button
+                      onClick={triggerProximitySpark}
+                      className="w-full py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded text-xs font-mono font-medium transition active:scale-[0.98]"
+                    >
+                      Fire Proximity Spark (Flow C demo)
+                    </button>
+                    <div className="flex gap-1.5">
+                      {['Active', 'Busy', 'Off'].map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => setPresence(mode)}
+                          className={`flex-1 py-1 text-xs font-mono rounded border transition ${
+                            presence === mode
+                              ? 'bg-slate-600 text-white border-slate-700'
+                              : 'bg-white text-slate-500 border-slate-300'
+                          }`}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
 
