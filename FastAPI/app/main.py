@@ -15,6 +15,7 @@ from app.clients.sendblue import send_message
 from app.commands import try_handle_command
 from app.conversation import record_message, recent_messages
 from app.crew_digest import try_resolve_digest_approval
+from app.crew_routes import router as crew_router
 from app.mutual_mode import run_mutual_mode_check
 from app.onboarding import router as onboarding_router
 from app.planning import post_proposal_to_group, record_time_pick
@@ -33,6 +34,7 @@ app.add_middleware(
 )
 
 app.include_router(onboarding_router)
+app.include_router(crew_router)
 
 
 @app.get("/health")

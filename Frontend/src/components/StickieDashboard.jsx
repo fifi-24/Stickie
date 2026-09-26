@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { API_BASE } from '../api';
 
 const DEFAULT_INTERESTS = [
@@ -10,16 +10,6 @@ const DEFAULT_INTERESTS = [
   "Late Night Ramen",
   "Vintage Thrifting",
   "Study Sessions"
-];
-
-// TODO(real data): still mock -- no backend endpoint for a real contacts
-// list exists yet. Wire this to a real GET /contacts call before demoing
-// this tab as if it were live data.
-const INITIAL_FRIENDS = [
-  { id: 1, name: "Anvi", handle: "@anvi_m", status: "Active", cadence: "Weekly", lastMet: "3d ago", tag: "AN" },
-  { id: 2, name: "Bhaumi", handle: "@bhaumi.p", status: "Active", cadence: "Bi-weekly", lastMet: "1w ago", tag: "BP" },
-  { id: 3, name: "Ellie", handle: "@ellie_v", status: "In Flow", cadence: "Weekly", lastMet: "Yesterday", tag: "EV" },
-  { id: 4, name: "Nancy", handle: "@nancy_hackgt", status: "Due", cadence: "Monthly", lastMet: "4w ago", tag: "NR" }
 ];
 
 // TODO(real data): still mock -- no backend endpoint returns real
@@ -100,10 +90,23 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
   const [customTagInput, setCustomTagInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
-  const [friendsList, setFriendsList] = useState(INITIAL_FRIENDS);
+  const [crew, setCrew] = useState({ mutual: [], solo: [] });
   const [newFriendName, setNewFriendName] = useState('');
   const [newFriendPhone, setNewFriendPhone] = useState('');
   const [showAddFriend, setShowAddFriend] = useState(false);
+
+  const fetchCrew = () => {
+    if (!phone) return;
+    fetch(`${API_BASE}/crew?phone=${encodeURIComponent(phone)}`)
+      .then((r) => r.json())
+      .then(setCrew)
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    if (activeTab === 'friends') fetchCrew();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const toggleInterest = (tag) => {
     setSelectedInterests(prev =>
@@ -121,24 +124,43 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
     }
   };
 
-  const handleAddFriend = (e) => {
+  const handleAddFriend = async (e) => {
     e.preventDefault();
     if (!newFriendName.trim() || !newFriendPhone.trim()) return;
-    setFriendsList(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        name: newFriendName.trim(),
-        handle: `@${newFriendName.toLowerCase().replace(/\s+/g, '')}`,
-        cadence: 'Monthly',
-        lastMet: 'Just added',
-        status: 'Active',
-        tag: newFriendName.slice(0, 2).toUpperCase()
-      }
-    ]);
+    await fetch(`${API_BASE}/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner_phone: phone, name: newFriendName.trim(), phone: newFriendPhone.trim() }),
+    });
     setNewFriendName('');
     setNewFriendPhone('');
     setShowAddFriend(false);
+    fetchCrew();
+  };
+
+  const nudgeOne = async (kind, key) => {
+    setStatusBanner('Sending...');
+    try {
+      const res = await fetch(`${API_BASE}/api/nudge-one`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, kind, key }),
+      });
+      setStatusBanner(res.ok ? 'Nudge sent' : 'Could not send that nudge');
+    } catch (err) {
+      setStatusBanner('Nudge failed: ' + err.message);
+    }
+    setTimeout(() => setStatusBanner(''), 3000);
+    fetchCrew();
+  };
+
+  const updateContactCadence = async (contactId, cadenceLabel) => {
+    await fetch(`${API_BASE}/contacts/${contactId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cadence_days: CADENCE_DAYS[cadenceLabel] }),
+    });
+    fetchCrew();
   };
 
   const triggerProximitySpark = async () => {
@@ -396,28 +418,70 @@ export default function StickieDashboard({ name = '', phone: realPhone = '', int
                 )}
 
                 <div className="space-y-2">
-                  {friendsList.map((friend) => (
+                  {crew.mutual.length === 0 && crew.solo.length === 0 && (
+                    <p className="text-[11px] text-slate-400 font-mono text-center py-4">
+                      no crew yet
+                    </p>
+                  )}
+
+                  {crew.mutual.map((friend) => (
                     <div
-                      key={friend.id}
+                      key={friend.other_phone}
                       className="p-2.5 bg-white border border-blue-100 rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(219,231,246,0.5)]"
                     >
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center font-mono text-xs font-bold text-blue-900">
-                          {friend.tag}
+                          {friend.other_name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-slate-800">
-                            {friend.name}
-                            <span className="text-[10px] font-normal text-slate-400 ml-1.5">{friend.handle}</span>
-                          </div>
+                          <div className="text-xs font-bold text-slate-800">{friend.other_name}</div>
                           <div className="text-[10px] font-mono text-slate-500">
-                            seen: {friend.lastMet} • {friend.cadence}
+                            {friend.days_since === null ? 'never hung out' : `seen: ${friend.days_since}d ago`}
+                            {' '}• shared {crew.nudge_threshold_days || 30}d cadence
                           </div>
                         </div>
                       </div>
 
                       <button
-                        onClick={() => setStatusBanner(`Concierge nudge dispatched for ${friend.name}`)}
+                        onClick={() => nudgeOne('mutual', friend.other_phone)}
+                        className="text-[10px] font-mono px-2.5 py-1 rounded border border-blue-300 text-blue-900 hover:bg-blue-50"
+                      >
+                        nudge
+                      </button>
+                    </div>
+                  ))}
+
+                  {crew.solo.map((contact) => (
+                    <div
+                      key={contact.key}
+                      className="p-2.5 bg-white border border-blue-100 rounded-xl flex items-center justify-between shadow-[1px_2px_0px_0px_rgba(219,231,246,0.5)]"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center font-mono text-xs font-bold text-blue-900">
+                          {contact.other_name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {contact.other_name}
+                            <span className="text-[10px] font-normal text-slate-400 ml-1.5">not on Stickie</span>
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
+                            {contact.days_since === null ? 'never met' : `seen: ${contact.days_since}d ago`}
+                            <select
+                              value={DAYS_TO_CADENCE[contact.cadence_days] || 'Monthly'}
+                              onChange={(e) => updateContactCadence(contact.key, e.target.value)}
+                              className="text-[10px] font-mono bg-transparent border-none outline-none text-blue-700"
+                            >
+                              <option value="Weekly">weekly</option>
+                              <option value="Bi-weekly">bi-weekly</option>
+                              <option value="Monthly">monthly</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => nudgeOne('solo', contact.key)}
                         className="text-[10px] font-mono px-2.5 py-1 rounded border border-blue-300 text-blue-900 hover:bg-blue-50"
                       >
                         nudge
