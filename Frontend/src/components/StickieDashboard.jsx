@@ -79,7 +79,12 @@ function Logo({ size = 40, onClick }) {
         transform: "rotate(-0.8deg)",
       }}
     >
-      <img src="/stickieLogo.png" width={size} height={size} style={{ objectFit: "contain" }} />
+      <img
+        src="/stickieLogo.png"
+        width={size}
+        height={size}
+        style={{ objectFit: "contain" }}
+      />
     </div>
   );
 }
@@ -101,7 +106,9 @@ export default function StickieDashboard({
   nudgeThresholdDays = null,
 }) {
   const [fullName, setFullName] = useState(name || "Stickie User");
-  const [pronouns, setPronouns] = useState("they/them");
+  const [pronouns, setPronouns] = useState(() => {
+    return localStorage.getItem("stickie_pronouns") || "she/her";
+  });
   const [phone, setPhone] = useState(realPhone || "");
   const [cadence, setCadence] = useState(
     DAYS_TO_CADENCE[nudgeThresholdDays] || "Monthly"
@@ -348,6 +355,22 @@ export default function StickieDashboard({
     fontWeight: 700,
   };
 
+  const [hiddenMutuals, setHiddenMutuals] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("stickie_hidden_mutuals") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const hideMutualFriend = (phoneToHide) => {
+    setHiddenMutuals((prev) => {
+      const updated = [...prev, phoneToHide];
+      localStorage.setItem("stickie_hidden_mutuals", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // ============================================================
   // SETTINGS (Corkboard Sticky Layout)
   // ============================================================
@@ -363,10 +386,7 @@ export default function StickieDashboard({
         >
           <header className="px-5 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Logo
-                size={40}
-                onClick={() => setView("dashboard")}
-              />
+              <Logo size={40} onClick={() => setView("dashboard")} />
               <h1
                 className="font-serif text-lg font-bold"
                 style={{ color: INK }}
@@ -428,7 +448,11 @@ export default function StickieDashboard({
                   </label>
                   <select
                     value={pronouns}
-                    onChange={(e) => setPronouns(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPronouns(val);
+                      localStorage.setItem("stickie_pronouns", val);
+                    }}
                     className="w-full px-3 py-1.5 text-sm bg-white/90 border border-yellow-400/50 rounded-xs outline-none focus:bg-white"
                   >
                     <option value="they/them">they/them</option>
@@ -596,16 +620,25 @@ export default function StickieDashboard({
             >
               <div className="h-2 absolute top-0 left-0 right-0 rounded-t-sm bg-blue-300/30" />
               <div>
-                <div className="text-xs font-bold mt-1" style={{ color: '#0369A1' }}>Google Calendar</div>
+                <div
+                  className="text-xs font-bold mt-1"
+                  style={{ color: "#0369A1" }}
+                >
+                  Google Calendar
+                </div>
                 <div className="text-[11px] font-mono text-slate-600">
-                  {hasCalendar === null ? 'checking...' : hasCalendar ? 'Connected (syncing live)' : 'Not connected'}
+                  {hasCalendar === null
+                    ? "checking..."
+                    : hasCalendar
+                    ? "Connected (syncing live)"
+                    : "Not connected"}
                 </div>
               </div>
               <button
                 onClick={connectCalendar}
                 className="text-[11px] font-mono px-3 py-1 rounded-xs border font-semibold bg-white text-sky-800 border-sky-300 shadow-xs hover:bg-sky-50"
               >
-                {hasCalendar ? 'reconnect' : 'connect'}
+                {hasCalendar ? "reconnect" : "connect"}
               </button>
             </div>
 
@@ -850,67 +883,76 @@ export default function StickieDashboard({
               {/* 3-Column Square Grid for Crew Notes */}
               <div className="grid grid-cols-3 gap-3 pt-3">
                 {/* MUTUAL STICKIES (Square Blue/Yellow Notes) */}
-                {crew.mutual.map((friend, idx) => (
-                  <div
-                    key={friend.other_phone}
-                    className="aspect-square p-3 rounded-xs flex flex-col justify-between relative transition duration-150 hover:rotate-0 hover:scale-[1.02]"
-                    style={{
-                      background: friend.overdue ? "#FEF08A" : POSTIT_BLUE,
-                      border: friend.overdue
-                        ? "1px solid #FACC15"
-                        : "1px solid #BAE6FD",
-                      boxShadow: STICKY_SHADOW,
-                      transform:
-                        idx % 2 === 0 ? "rotate(-0.8deg)" : "rotate(0.9deg)",
-                    }}
-                  >
-                    {/* Adhesive tape bar */}
-                    <div className="h-1.5 absolute top-0 left-0 right-0 rounded-t-xs bg-black/5" />
-
-                    {/* Top Row: Status (no unpin here -- a mutual crew member
-                        is a real Stickie user, not a row we own; there's no
-                        safe single-user "delete" for them yet, so this card
-                        deliberately doesn't get the × solo contacts have) */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-1">
-                        {friend.overdue && (
-                          <span className="text-[8px] font-mono uppercase px-1 py-0.5 rounded-xs bg-amber-400 text-amber-950 font-bold">
-                            overdue
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Middle Info */}
-                    <div className="my-auto py-1">
-                      <div
-                        className="text-xs font-bold truncate leading-tight capitalize"
-                        style={{ color: INK }}
-                      >
-                        {friend.other_name}
-                      </div>
-                      <span className="text-[8px] font-mono uppercase tracking-wider text-sky-900 block mt-0.5">
-                        stickie user
-                      </span>
-                      <div
-                        className="text-[9px] font-mono mt-1 leading-tight"
-                        style={{ color: MUTED }}
-                      >
-                        {friend.days_since === null
-                          ? "no hangouts yet"
-                          : `${friend.days_since}d ago`}
-                      </div>
-                    </div>
-
-                    {/* Bottom Action */}
-                    <button
-                      onClick={() => nudgeOne("mutual", friend.other_phone)}
-                      className="w-full text-[10px] font-mono py-1 rounded-xs border font-bold bg-white text-stone-800 border-stone-300 shadow-xs active:translate-y-0.5 hover:bg-stone-50"
+                {crew.mutual
+                  .filter(
+                    (friend) => !hiddenMutuals.includes(friend.other_phone)
+                  )
+                  .map((friend, idx) => (
+                    <div
+                      key={friend.other_phone}
+                      className="aspect-square p-3 rounded-xs flex flex-col justify-between relative transition duration-150 hover:rotate-0 hover:scale-[1.02]"
+                      style={{
+                        background: friend.overdue ? "#FEF08A" : POSTIT_BLUE,
+                        border: friend.overdue
+                          ? "1px solid #FACC15"
+                          : "1px solid #BAE6FD",
+                        boxShadow: STICKY_SHADOW,
+                        transform:
+                          idx % 2 === 0 ? "rotate(-0.8deg)" : "rotate(0.9deg)",
+                      }}
                     >
-                      nudge
-                    </button>
-                  </div>
-                ))}
+                      {/* Adhesive tape bar */}
+                      <div className="h-1.5 absolute top-0 left-0 right-0 rounded-t-xs bg-black/5" />
+
+                      {/* Top Row: Status badge & Dismiss/Hide button */}
+                      <div className="flex items-start justify-between w-full">
+                        <div className="flex items-center gap-1">
+                          {friend.overdue && (
+                            <span className="text-[8px] font-mono uppercase px-1 py-0.5 rounded-xs bg-amber-400 text-amber-950 font-bold">
+                              overdue
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => hideMutualFriend(friend.other_phone)}
+                          className="text-stone-400 hover:text-stone-700 text-xs leading-none font-bold px-1 rounded hover:bg-black/5 transition cursor-pointer"
+                          title="Hide from board"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      {/* Middle Info */}
+                      <div className="my-auto py-1">
+                        <div
+                          className="text-xs font-bold truncate leading-tight capitalize"
+                          style={{ color: INK }}
+                        >
+                          {friend.other_name}
+                        </div>
+                        <span className="text-[8px] font-mono uppercase tracking-wider text-sky-900 block mt-0.5">
+                          stickie user
+                        </span>
+                        <div
+                          className="text-[9px] font-mono mt-1 leading-tight"
+                          style={{ color: MUTED }}
+                        >
+                          {friend.days_since === null
+                            ? "no hangouts yet"
+                            : `${friend.days_since}d ago`}
+                        </div>
+                      </div>
+
+                      {/* Bottom Action */}
+                      <button
+                        onClick={() => nudgeOne("mutual", friend.other_phone)}
+                        className="w-full text-[10px] font-mono py-1 rounded-xs border font-bold bg-white text-stone-800 border-stone-300 shadow-xs active:translate-y-0.5 hover:bg-stone-50"
+                      >
+                        nudge
+                      </button>
+                    </div>
+                  ))}
 
                 {/* SOLO STICKIES (Square Yellow Notes) */}
                 {crew.solo.map((contact, idx) => (
