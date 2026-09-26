@@ -70,7 +70,7 @@ def post_proposal_to_group(activity: str) -> dict:
 
     plan = propose_plan(activity)
     times_str = " or ".join(plan["times"]) if plan["times"] else "a time this week"
-    message = f"Heard you all want to do {activity}! How about {plan['venue']}, {times_str}?"
+    message = f"Ok I got you - {plan['venue']} for {activity}? {times_str} both look open, lmk what works!"
     send_group_message(DEMO_GROUP_NUMBERS, message)
 
     with get_session() as session:
@@ -87,11 +87,19 @@ def post_proposal_to_group(activity: str) -> dict:
     clear_conversation()
 
     # Private-RSVP fallback: DM each member individually with the same
-    # options, using the already-tested shared primitive.
+    # options, using the already-tested shared primitive. A full natural
+    # sentence (via `message=`) instead of the generic numbered-list
+    # fallback, so it reads like a person, not a bot form.
+    times = plan["times"]
+    if len(times) >= 2:
+        private_text = f"hey! group's talking {activity} - does {times[0]} or {times[1]} work better for you?"
+    elif times:
+        private_text = f"hey! group's talking {activity} - does {times[0]} work for you?"
+    else:
+        private_text = f"hey! group's talking {activity} - what's good for you this week?"
+
     for number in DEMO_GROUP_NUMBERS:
-        propose_options_and_await_reply(
-            number, plan["times"], intro=f"Quick check for {activity} — which works for you?"
-        )
+        propose_options_and_await_reply(number, times, message=private_text)
 
     return plan
 

@@ -20,11 +20,20 @@ class PendingReply:
     resolved: str | None = None
 
 
-def propose_options_and_await_reply(phone: str, options: list[str], intro: str = "") -> None:
-    """Sends ONE message containing every option up front — never an open
-    'when are you free?' that forces a back-and-forth."""
-    lines = "\n".join(f"{i}. {option}" for i, option in enumerate(options, start=1))
-    message = f"{intro}\n{lines}".strip() if intro else lines
+def propose_options_and_await_reply(
+    phone: str, options: list[str], intro: str = "", message: str | None = None
+) -> None:
+    """Sends ONE message containing every option up front, never an open
+    'when are you free?' that forces a back-and-forth. Pass `message` for
+    a fully custom, natural-sounding text (e.g. "does X or Y work?") when
+    you don't want the generic numbered-list format below.
+
+    ASCII only in whatever text you send — a real em-dash or smart quote
+    can get mangled into garbage like "--" by some SMS/iMessage gateways.
+    """
+    if message is None:
+        lines = "\n".join(f"{i}. {option}" for i, option in enumerate(options, start=1))
+        message = f"{intro}\n{lines}".strip() if intro else lines
     send_message(phone, message)
     _pending[phone] = PendingReply(phone=phone, options=options)
 
