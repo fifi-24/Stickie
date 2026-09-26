@@ -620,6 +620,7 @@ export default function StickieDashboard({
                   desc: "Launches group planning prompt.",
                 },
                 { cmd: "/nudge", desc: "Triggers overdue check-ins." },
+                { cmd: "/met <friend>", desc: "Logs meeting with friend." },
               ].map((c) => (
                 <div
                   key={c.cmd}
