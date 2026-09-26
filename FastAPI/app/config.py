@@ -23,6 +23,16 @@ SENDBLUE_FROM_NUMBER = os.environ.get("SENDBLUE_FROM_NUMBER", "")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "")
+# Separate "Web application" type OAuth client for the per-user browser
+# redirect flow (app/clients/google_oauth_web.py) -- the Desktop-type
+# client above only supports http://localhost redirects, which break
+# the moment a real user completes this on their own phone instead of
+# this machine. Falls back to the Desktop client's creds so nothing
+# crashes before these are set, but the redirect will still fail on a
+# real device until a real Web-application client is created and its
+# redirect URI (WEBHOOK_BASE_URL + /oauth/google/callback) is registered.
+GOOGLE_WEB_CLIENT_ID = os.environ.get("GOOGLE_WEB_CLIENT_ID") or GOOGLE_CLIENT_ID
+GOOGLE_WEB_CLIENT_SECRET = os.environ.get("GOOGLE_WEB_CLIENT_SECRET") or GOOGLE_CLIENT_SECRET
 
 WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "")
 # Where the onboarding magic-link text should point. Set this to whatever

@@ -4,12 +4,14 @@
 # gets stored in users.google_token, keyed by their phone number, so
 # Flow A can eventually check everyone's real calendar, not just one.
 #
-# Uses the same GOOGLE_CLIENT_ID/SECRET (Desktop-app type) as
-# google_calendar.py. Desktop-type clients accept any http://localhost
-# redirect URI without extra registration, which is why this works with
-# zero additional Google Cloud Console setup — but only when whoever is
-# completing the OAuth screen does it from a browser that can actually
-# reach that localhost address (i.e., on this machine).
+# Uses GOOGLE_WEB_CLIENT_ID/SECRET, a separate "Web application" type
+# OAuth client, NOT the Desktop-app client google_calendar.py uses.
+# Desktop-type clients only accept http://localhost redirects, which
+# only resolve correctly when whoever completes the OAuth screen is on
+# this same machine -- on a real user's own phone, "localhost" means
+# their phone, so the redirect fails with ERR_CONNECTION_FAILED. A Web
+# application client's redirect URI must be the backend's actual public
+# address instead, registered up front in Google Cloud Console.
 
 import json
 
@@ -19,17 +21,17 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
 from app.clients.google_calendar import _to_rfc3339
-from app.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+from app.config import GOOGLE_WEB_CLIENT_ID, GOOGLE_WEB_CLIENT_SECRET, WEBHOOK_BASE_URL
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
-REDIRECT_URI = "http://localhost:8000/oauth/google/callback"
+REDIRECT_URI = f"{WEBHOOK_BASE_URL}/oauth/google/callback"
 
 
 def _flow() -> Flow:
     client_config = {
-        "installed": {
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
+        "web": {
+            "client_id": GOOGLE_WEB_CLIENT_ID,
+            "client_secret": GOOGLE_WEB_CLIENT_SECRET,
             "auth_uri": "https://accounts.google.com/o/oauth2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
             "redirect_uris": [REDIRECT_URI],
