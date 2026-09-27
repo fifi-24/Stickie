@@ -35,7 +35,6 @@ Built for HackGT 13, targeting Meta's "Bringing People Closer Together with AI" 
 - [Accomplishments](#accomplishments)
 - [What we learned](#what-we-learned)
 - [What's next](#whats-next)
-- [Team](#team)
 
 ## The idea
 
