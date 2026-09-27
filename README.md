@@ -42,17 +42,13 @@ Built for HackGT 13, targeting Meta's "Bringing People Closer Together with AI" 
 
 We're a group that studied abroad together, made the promise every close friend group makes ("we're going to keep hanging out!"), and then watched real life happen anyway. Calendars filled up, everyone got busy, and every "we should do trivia," every "let's grab coffee" got a few reacts in the group chat and quietly died.
 
-The friction is always the same: check everyone's calendar, agree on a place, follow up across a dozen texts. So we asked: what if the group chat itself could do that part? Not a new app to open, the exact thread everyone already has open all day.
+The flow is always the same: check everyone's calendar, agree on a place, follow up across a dozen texts. So we asked: what if the group chat itself could do that part? Not a new app to open, the exact thread everyone already has open all day.
 
-## Why "Stickie"
-
-Two ideas stuck together (pun intended). A sticky note is the oldest, dumbest, most universal reminder there is, the thing you leave so a plan doesn't get forgotten. And "sticking together" is what a friend group is actually trying to do when it makes plans in the first place. Stickie is the sticky note that lives in your group chat and makes sure the plan actually sticks.
-
-## What it does
+## What Stickie does
 
 Stickie has two real jobs: getting plans made, and keeping friendships from drifting.
 
-**Making plans happen.** Someone in the group chat says "trivia this week?" and someone else says "I'm in." Stickie catches that, checks the real Google Calendar of whoever has connected theirs, finds a real nearby venue through Google Places, and privately texts each person 1-2 times that actually work for them. The moment everyone's answered, it confirms in the group and drops the event onto every calendar.
+**Making plans happen.** Someone in the group chat says "trivia this week?" and someone else says "I'm in." Stickie catches that, checks the Google Calendar of whoever has connected theirs, finds a real nearby venue through Google Places, and privately texts each person 1-2 times that actually work for them. The moment everyone's answered, it confirms in the group and drops the event onto every calendar.
 
 **Keeping connections alive.** Stickie keeps a record of every friend you give it, people already on Stickie and your own contacts who aren't, logged the same way, with the last time you actually hung out. Text `/nudge` and it hands you back a list: everyone you're overdue to see, each with a plan already picked out. Reply "yes" to one and it sends that plan for you.
 
@@ -60,7 +56,7 @@ Stickie has two real jobs: getting plans made, and keeping friendships from drif
 
 ## How AI is implemented
 
-Meta's Muse Spark model is the actual reasoning layer, called through `app/clients/muse_spark.py`, a thin `requests`-based wrapper around Muse Spark's OpenAI-Responses-API-shaped endpoint (`POST {base}/responses`, `input`/`output_text`). It's used in exactly four places in `app/reasoning.py`, each one a real judgment call, not a lookup:
+Meta's Muse Spark model is the actual reasoning layer, called through `app/clients/muse_spark.py`, a thin `requests`-based wrapper around Muse Spark's OpenAI-Responses-API-shaped endpoint (`POST {base}/responses`, `input`/`output_text`). It's used 4 separate times in `app/reasoning.py`, each one a real judgment call, not a lookup:
 
 | Function | What it decides |
 |---|---|
@@ -135,7 +131,7 @@ flowchart TD
 - A full working loop, tested live end to end: plan detected, real calendars checked, venue proposed, everyone confirms, event lands on every calendar automatically.
 - Catching a genuinely new activity, nowhere in a hardcoded list, purely by understanding the conversation.
 - One unified nudge list treating real Stickie friends and off-app contacts the same way.
-- Three real, tested commands (`/join`, `/met`, `/ideas`) that each turn a whole flow into a single text.
+- Four real, tested commands (`/join`, `/met`, `/ideas`, `/plan`) that each turn a whole flow into a single text.
 
 ## What we learned
 
