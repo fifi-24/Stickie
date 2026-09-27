@@ -25,7 +25,7 @@ Built for HackGT 13, targeting Meta's "Bringing People Closer Together with AI" 
 ## Table of contents
 
 - [The idea](#the-idea)
-- [What it does](#what-Stickie-does)
+- [What Stickie does](#what-Stickie-does)
 - [How AI is implemented](#how-ai-is-implemented)
 - [Technical architecture](#technical-architecture)
 - [Built with](#built-with)
