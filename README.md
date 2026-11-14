@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/HackGT_13-Meta_Track-FFD400" />
 </p>
 
-Built for HackGT 13, targeting Meta's "Bringing People Closer Together with AI" track and Aramco's "Social Good" track.
+<p align="center"><i>Built for HackGT 13, targeting Meta's "Bringing People Closer Together with AI" track and Aramco's "Social Good" track.</i></p>
 
 ## Table of contents
 
